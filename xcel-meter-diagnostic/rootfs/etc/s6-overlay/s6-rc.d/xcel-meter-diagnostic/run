@@ -1,0 +1,2 @@
+#!/command/with-contenv sh
+exec python3 -m xcel_meter.addon_runtime

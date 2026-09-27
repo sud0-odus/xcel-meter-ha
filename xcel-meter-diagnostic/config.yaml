@@ -1,0 +1,34 @@
+name: "Xcel Meter HA Diagnostic"
+version: "0.3.0"
+slug: "xcel_meter_diagnostic"
+description: "Validate Xcel/Itron IEEE 2030.5 identity and meter readings directly inside Home Assistant"
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: manual
+init: false
+stage: experimental
+map:
+  - type: addon_config
+    read_only: false
+  - type: all_addon_configs
+    read_only: true
+options:
+  meter_ip: null
+  meter_port: 8081
+  expected_lfdi: ""
+  identity_source: "auto"
+  legacy_addon_slug: ""
+  timeout: 8
+  poll_interval: 60
+  log_level: "INFO"
+schema:
+  meter_ip: str
+  meter_port: port
+  expected_lfdi: str?
+  identity_source: list(auto|own|legacy)
+  legacy_addon_slug: str?
+  timeout: int
+  poll_interval: int
+  log_level: list(DEBUG|INFO|WARNING|ERROR)

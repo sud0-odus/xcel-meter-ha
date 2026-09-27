@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xcel-meter-ha"
+version = "0.3.0"
+description = "IEEE 2030.5 diagnostics for Xcel Energy Itron meters in Home Assistant"
+requires-python = ">=3.12"
+dependencies = [
+  "cryptography>=46.0.0,<47",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xcel_meter"]
