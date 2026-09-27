@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.6
+
+- Added one automatic retry for the transient TLS handshake timeout observed during real Xcel/Itron meter discovery.
+- The retry remains deliberately conservative: only the first transient handshake failure is retried.
+- Existing `BAD_SIGNATURE` retry behavior is preserved.
+- Added regression coverage for identifying handshake timeouts without treating normal connection-refused errors as transient handshake failures.
+
 ## 0.3.5
 
 - Added reusable meter-profile discovery so the Itron meter layout does not need to be rediscovered on every poll.

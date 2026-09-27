@@ -254,7 +254,7 @@ def main() -> int:
     poll_interval = int(options.get("poll_interval", 60))
     poll_interval = max(poll_interval, 15)
 
-    LOGGER.info("Xcel Meter HA Diagnostic v0.3.5 starting")
+    LOGGER.info("Xcel Meter HA Diagnostic v0.3.6 starting")
     LOGGER.info("This build does not publish MQTT or modify certificate files.")
 
     profile: MeterProfile | None = None

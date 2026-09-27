@@ -1,5 +1,5 @@
 name: "Xcel Meter HA Diagnostic"
-version: "0.3.5"
+version: "0.3.6"
 slug: "xcel_meter_diagnostic"
 description: "Validate Xcel/Itron IEEE 2030.5 identity and meter readings directly inside Home Assistant"
 arch:

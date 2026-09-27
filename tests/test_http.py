@@ -1,6 +1,10 @@
 import ssl
 
-from xcel_meter.http import _is_transient_bad_signature, parse_http_response
+from xcel_meter.http import (
+    _is_transient_bad_signature,
+    _is_transient_handshake_timeout,
+    parse_http_response,
+)
 
 
 def test_parse_content_length_response():
@@ -36,3 +40,19 @@ def test_other_ssl_error_is_not_bad_signature():
     )
 
     assert not _is_transient_bad_signature(error)
+
+
+def test_handshake_timeout_is_transient_retry_candidate():
+    error = TimeoutError(
+        "_ssl.c:1064: The handshake operation timed out"
+    )
+
+    assert _is_transient_handshake_timeout(error)
+
+
+def test_normal_connection_error_is_not_handshake_timeout():
+    error = ConnectionRefusedError(
+        "Connection refused"
+    )
+
+    assert not _is_transient_handshake_timeout(error)

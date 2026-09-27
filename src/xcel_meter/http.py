@@ -20,6 +20,10 @@ def _is_transient_bad_signature(exc: ssl.SSLError) -> bool:
     return "bad signature" in str(exc).lower()
 
 
+def _is_transient_handshake_timeout(exc: BaseException) -> bool:
+    return "handshake operation timed out" in str(exc).lower()
+
+
 @dataclass(frozen=True)
 class HttpResponse:
     status: int
@@ -161,9 +165,14 @@ class Ieee20305Client:
                     cipher = tls.cipher()[0] if tls.cipher() else None
 
             except ssl.SSLError as exc:
-                if _is_transient_bad_signature(exc) and attempt == 0:
+                if attempt == 0 and (
+                    _is_transient_bad_signature(exc)
+                    or _is_transient_handshake_timeout(exc)
+                ):
                     LOGGER.warning(
-                        "Transient TLS BAD_SIGNATURE from meter; retrying request once"
+                        "Transient TLS handshake failure from meter; "
+                        "retrying request once: %s",
+                        exc,
                     )
                     time.sleep(0.25)
                     continue
@@ -171,6 +180,17 @@ class Ieee20305Client:
                 raise MeterHttpError(classify_ssl_error(exc)) from exc
 
             except (ConnectionRefusedError, TimeoutError, OSError) as exc:
+                if (
+                    attempt == 0
+                    and _is_transient_handshake_timeout(exc)
+                ):
+                    LOGGER.warning(
+                        "Transient TLS handshake timeout from meter; "
+                        "retrying request once"
+                    )
+                    time.sleep(0.25)
+                    continue
+
                 raise MeterHttpError(
                     f"TCP connection to {self.host}:{self.port} failed: {exc}"
                 ) from exc
