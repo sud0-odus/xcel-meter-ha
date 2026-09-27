@@ -11,7 +11,7 @@ from pathlib import Path
 from .certificate import inspect_client_identity
 from .http import Ieee20305Client
 from .identity import normalize_lfdi
-from .reader import read_core_snapshot
+from .reader import MeterProfile, discover_core_profile, read_core_snapshot
 
 LOGGER = logging.getLogger("xcel_meter.addon")
 
@@ -145,7 +145,10 @@ def validate_identity(location: IdentityLocation, expected_lfdi: str | None) -> 
     return actual
 
 
-def run_once(options: dict) -> None:
+def run_once(
+    options: dict,
+    profile: MeterProfile | None = None,
+) -> MeterProfile:
     meter_ip = str(options.get("meter_ip") or "").strip()
     if not meter_ip:
         raise RuntimeError("meter_ip is required")
@@ -170,7 +173,28 @@ def run_once(options: dict) -> None:
         location.key_path,
         timeout=timeout,
     )
-    snapshot = read_core_snapshot(client, meter_ip, meter_port)
+    if profile is None:
+        LOGGER.info(
+            "Meter profile cache: MISS - discovering meter layout"
+        )
+
+        profile = discover_core_profile(client)
+
+        LOGGER.info(
+            "Meter profile cache: READY - %s core reading paths",
+            len(profile.core_readings),
+        )
+    else:
+        LOGGER.debug(
+            "Meter profile cache: HIT - using cached reading paths"
+        )
+
+    snapshot = read_core_snapshot(
+        client,
+        meter_ip,
+        meter_port,
+        profile=profile,
+    )
 
     LOGGER.info("TLS/IEEE 2030.5 connection: PASS")
     LOGGER.info("Itron agent version: %s", snapshot.agent_version.value)
@@ -216,6 +240,8 @@ def run_once(options: dict) -> None:
         json.dumps(snapshot.to_dict(), sort_keys=True),
     )
 
+    return profile
+
 
 def main() -> int:
     options = load_options()
@@ -228,14 +254,28 @@ def main() -> int:
     poll_interval = int(options.get("poll_interval", 60))
     poll_interval = max(poll_interval, 15)
 
-    LOGGER.info("Xcel Meter HA Diagnostic v0.3.4 starting")
+    LOGGER.info("Xcel Meter HA Diagnostic v0.3.5 starting")
     LOGGER.info("This build does not publish MQTT or modify certificate files.")
+
+    profile: MeterProfile | None = None
 
     while True:
         try:
-            run_once(options)
+            profile = run_once(
+                options,
+                profile,
+            )
         except Exception as exc:  # noqa: BLE001 - top-level service diagnostics
             LOGGER.error("RESULT: FAIL - %s", exc)
+
+            if profile is not None:
+                LOGGER.warning(
+                    "Meter profile cache cleared after failed poll; "
+                    "meter layout will be rediscovered next cycle"
+                )
+
+            profile = None
+
         time.sleep(poll_interval)
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.5
+
+- Added reusable meter-profile discovery so the Itron meter layout does not need to be rediscovered on every poll.
+- The initial poll still discovers UsagePoint, MeterReading resources, ReadingTypes, and the three validated core reading paths.
+- Subsequent successful polls reuse the cached core reading paths and fetch only Instantaneous Demand, Current Summation Delivered, and Current Summation Received.
+- The cached meter profile is automatically discarded after a failed poll so the next cycle can rediscover the meter layout.
+- Added regression coverage proving that repeated reads with a cached profile do not repeat meter discovery.
+
 ## 0.3.4
 
 - Marked Instantaneous Demand, Current Summation Delivered, and Current Summation Received as validated against real Xcel/Itron hardware.
