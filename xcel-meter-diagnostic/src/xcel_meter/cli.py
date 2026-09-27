@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import sys
 
-from .certificate import generate_client_identity, inspect_client_identity
+from .certificate import generate_client_identity
 from .http import Ieee20305Client
 from .identity import check_identity, normalize_lfdi, resolve_identity_paths
 from .probe import probe_meter
