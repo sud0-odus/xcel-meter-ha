@@ -74,7 +74,7 @@ def test_device_discovery_has_expected_components_with_export():
         "instantaneous_power",
         "energy_delivered",
         "energy_received",
-        "last_successful_read",
+        "meter_health",
         "meter_lfdi",
         "agent_version",
         "meter_software_version",
@@ -97,7 +97,7 @@ def test_device_discovery_has_expected_components_without_export():
     assert set(components) == {
         "instantaneous_power",
         "energy_delivered",
-        "last_successful_read",
+        "meter_health",
         "meter_lfdi",
         "agent_version",
         "meter_software_version",
@@ -108,6 +108,7 @@ def test_device_discovery_has_expected_components_without_export():
 
     assert len(components) == 9
     assert definition.removed_components == (
+        "last_successful_read",
         "energy_received",
     )
 
@@ -149,7 +150,7 @@ def test_diagnostic_sensor_configuration():
     ).payload["components"]
 
     for name in (
-        "last_successful_read",
+        "meter_health",
         "meter_lfdi",
         "agent_version",
         "meter_software_version",
@@ -162,10 +163,10 @@ def test_diagnostic_sensor_configuration():
             == "diagnostic"
         )
 
-    assert (
-        components["last_successful_read"]["device_class"]
-        == "timestamp"
-    )
+    health = components["meter_health"]
+
+    assert health["state_topic"].endswith("/health")
+    assert health["entity_category"] == "diagnostic"
 
     assert (
         components["certificate_expiration"]["device_class"]
@@ -239,3 +240,38 @@ def test_state_payload_without_certificate_info_is_supported():
     assert "client_lfdi" not in payload
     assert "certificate_expiration" not in payload
     assert "certificate_days_remaining" not in payload
+
+
+def test_measurements_require_app_and_meter_availability():
+    definition = build_device_definition(
+        _snapshot(),
+        include_received=False,
+    )
+
+    components = definition.payload["components"]
+
+    power = components["instantaneous_power"]
+    health = components["meter_health"]
+
+    assert power["availability_mode"] == "all"
+    assert power["availability"] == [
+        {"topic": definition.availability_topic},
+        {"topic": definition.meter_availability_topic},
+    ]
+
+    assert health["availability"] == [
+        {"topic": definition.availability_topic},
+    ]
+
+    assert health["state_topic"] == definition.health_topic
+
+
+def test_export_enabled_still_cleans_old_timestamp_entity():
+    definition = build_device_definition(
+        _snapshot(),
+        include_received=True,
+    )
+
+    assert definition.removed_components == (
+        "last_successful_read",
+    )

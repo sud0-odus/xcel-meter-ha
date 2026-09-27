@@ -326,6 +326,18 @@ class MqttPublisher:
             retain=True,
         )
 
+        self._publish(
+            self.definition.meter_availability_topic,
+            "online",
+            retain=True,
+        )
+
+        self._publish(
+            self.definition.health_topic,
+            "Healthy",
+            retain=True,
+        )
+
         if self.include_received:
             LOGGER.info(
                 "MQTT state published: power=%s W delivered=%s Wh "
@@ -340,6 +352,27 @@ class MqttPublisher:
                 snapshot.instantaneous_power_w,
                 snapshot.energy_delivered_wh,
             )
+
+    def publish_meter_problem(self) -> None:
+        """Mark meter data unavailable without marking the app offline."""
+        if not self._connected.is_set():
+            return
+
+        self._publish(
+            self.definition.health_topic,
+            "Problem",
+            retain=True,
+        )
+
+        self._publish(
+            self.definition.meter_availability_topic,
+            "offline",
+            retain=True,
+        )
+
+        LOGGER.warning(
+            "MQTT meter status published: Problem"
+        )
 
     def publish_offline(self) -> None:
         if not self._connected.is_set():

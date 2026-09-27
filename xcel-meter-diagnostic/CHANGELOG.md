@@ -1,3 +1,47 @@
+## 0.4.3
+
+### Added
+
+- Added typed meter HTTP failure metadata for transport, HTTP status,
+  request path, and cache-invalidation decisions.
+- Added regression tests for meter-profile cache behavior.
+- Added Meter Health diagnostic with stable `Healthy` and `Problem`
+  states.
+- Added separate physical-meter availability from application/MQTT
+  availability.
+
+### Changed
+
+- Transient meter transport failures now retain the cached meter profile
+  instead of forcing full meter rediscovery on the next poll.
+- Ordinary timeout and connection-reset failures receive one conservative
+  retry where appropriate.
+- Cached meter profiles are invalidated when a cached resource returns
+  HTTP 404 or 410.
+- HTTP 5xx and transient transport failures no longer cause unnecessary
+  22-resource meter rediscovery.
+- Measurement entities now require both the application and physical
+  meter to be available.
+- Meter diagnostics remain available when the application is online even
+  if the physical meter cannot currently be read.
+- Replaced the standalone Last Successful Read entity with Meter Health
+  to reduce Home Assistant Activity/logbook noise.
+- Existing Last Successful Read MQTT discovery is explicitly removed
+  during upgrade.
+- Meter Health intentionally uses only `Healthy` and `Problem`; startup,
+  restart, and recovery do not publish synthetic transitional states.
+
+### Automation safety
+
+- Meter Health state is retained through MQTT.
+- A Home Assistant or app restart does not intentionally publish
+  `Problem`.
+- Physical-meter failure is represented separately from application
+  availability.
+- Automations should use explicit transitions such as
+  `from: Healthy` / `to: Problem` to avoid treating Home Assistant startup
+  states such as unavailable as a real meter failure.
+
 ## 0.4.2
 
 ### Added
@@ -113,5 +157,3 @@
 - Certificate-derived LFDI validation.
 - Direct IEEE 2030.5 meter discovery and core reading validation.
 - No MQTT publishing and no certificate mutation.
-
-

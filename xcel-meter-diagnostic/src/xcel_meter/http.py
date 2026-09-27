@@ -13,7 +13,23 @@ LOGGER = logging.getLogger("xcel_meter.http")
 
 
 class MeterHttpError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        kind: str = "protocol",
+        status: int | None = None,
+        path: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.status = status
+        self.path = path
+
+    @property
+    def invalidates_profile(self) -> bool:
+        """Return True only when the cached resource is known to be gone."""
+        return self.kind == "http" and self.status in {404, 410}
 
 
 def _is_transient_bad_signature(exc: ssl.SSLError) -> bool:
@@ -22,6 +38,18 @@ def _is_transient_bad_signature(exc: ssl.SSLError) -> bool:
 
 def _is_transient_handshake_timeout(exc: BaseException) -> bool:
     return "handshake operation timed out" in str(exc).lower()
+
+
+def _is_retryable_transport_error(exc: BaseException) -> bool:
+    return isinstance(
+        exc,
+        (
+            TimeoutError,
+            ConnectionResetError,
+            ConnectionAbortedError,
+            BrokenPipeError,
+        ),
+    ) or _is_transient_handshake_timeout(exc)
 
 
 @dataclass(frozen=True)
@@ -177,22 +205,32 @@ class Ieee20305Client:
                     time.sleep(0.25)
                     continue
 
-                raise MeterHttpError(classify_ssl_error(exc)) from exc
+                raise MeterHttpError(
+                    classify_ssl_error(exc),
+                    kind="transport",
+                    path=request_path,
+                ) from exc
 
             except (ConnectionRefusedError, TimeoutError, OSError) as exc:
                 if (
                     attempt == 0
-                    and _is_transient_handshake_timeout(exc)
+                    and _is_retryable_transport_error(exc)
                 ):
                     LOGGER.warning(
-                        "Transient TLS handshake timeout from meter; "
-                        "retrying request once"
+                        "Transient meter transport failure; "
+                        "retrying request once: %s",
+                        exc,
                     )
                     time.sleep(0.25)
                     continue
 
                 raise MeterHttpError(
-                    f"TCP connection to {self.host}:{self.port} failed: {exc}"
+                    (
+                        f"TCP connection to {self.host}:{self.port} "
+                        f"failed: {exc}"
+                    ),
+                    kind="transport",
+                    path=request_path,
                 ) from exc
 
             response = parse_http_response(b"".join(chunks), cipher)
@@ -200,8 +238,14 @@ class Ieee20305Client:
             if not 200 <= response.status < 300:
                 preview = response.text.strip().replace("\n", " ")[:300]
                 raise MeterHttpError(
-                    f"Meter returned HTTP {response.status} {response.reason} "
-                    f"for {request_path}. Response: {preview or '<empty>'}"
+                    (
+                        f"Meter returned HTTP {response.status} "
+                        f"{response.reason} for {request_path}. "
+                        f"Response: {preview or '<empty>'}"
+                    ),
+                    kind="http",
+                    status=response.status,
+                    path=request_path,
                 )
 
             return response

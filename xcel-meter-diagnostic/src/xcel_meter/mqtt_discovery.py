@@ -9,7 +9,7 @@ from .models import MeterSnapshot
 
 
 APP_NAME = "xcel-meter-ha"
-APP_VERSION = "0.4.2"
+APP_VERSION = "0.4.3"
 SUPPORT_URL = "https://github.com/sud0-odus/xcel-meter-ha"
 
 
@@ -18,6 +18,8 @@ class MqttDeviceDefinition:
     discovery_topic: str
     state_topic: str
     availability_topic: str
+    meter_availability_topic: str
+    health_topic: str
     payload: dict
     removed_components: tuple[str, ...] = ()
 
@@ -68,6 +70,10 @@ def build_device_definition(
 
     state_topic = f"{base_topic}/state"
     availability_topic = f"{base_topic}/availability"
+    meter_availability_topic = (
+        f"{base_topic}/availability/meter"
+    )
+    health_topic = f"{base_topic}/health"
 
     discovery_topic = (
         f"{discovery_prefix}/device/"
@@ -87,9 +93,6 @@ def build_device_definition(
             "support_url": SUPPORT_URL,
         },
         "state_topic": state_topic,
-        "availability_topic": availability_topic,
-        "payload_available": "online",
-        "payload_not_available": "offline",
         "components": {
             "instantaneous_power": {
                 "platform": "sensor",
@@ -117,17 +120,12 @@ def build_device_definition(
                     "{{ value_json.energy_delivered_wh }}"
                 ),
             },
-            "last_successful_read": {
+            "meter_health": {
                 "platform": "sensor",
-                "name": "Last Successful Read",
-                "unique_id": (
-                    f"{device_id}_last_successful_read"
-                ),
-                "device_class": "timestamp",
+                "name": "Meter Health",
+                "unique_id": f"{device_id}_meter_health",
                 "entity_category": "diagnostic",
-                "value_template": (
-                    "{{ value_json.last_successful_read }}"
-                ),
+                "state_topic": health_topic,
             },
             "meter_lfdi": {
                 "platform": "sensor",
@@ -203,7 +201,9 @@ def build_device_definition(
         }
     )
 
-    removed_components: tuple[str, ...] = ()
+    removed_components_list = [
+        "last_successful_read",
+    ]
 
     if include_received:
         payload["components"]["energy_received"] = {
@@ -220,12 +220,40 @@ def build_device_definition(
             ),
         }
     else:
-        removed_components = ("energy_received",)
+        removed_components_list.append(
+            "energy_received"
+        )
+
+    measurement_components = {
+        "instantaneous_power",
+        "energy_delivered",
+        "energy_received",
+    }
+
+    for component_id, component in (
+        payload["components"].items()
+    ):
+        if component_id in measurement_components:
+            component["availability"] = [
+                {"topic": availability_topic},
+                {"topic": meter_availability_topic},
+            ]
+            component["availability_mode"] = "all"
+        else:
+            component["availability"] = [
+                {"topic": availability_topic},
+            ]
+
+    removed_components = tuple(
+        removed_components_list
+    )
 
     return MqttDeviceDefinition(
         discovery_topic=discovery_topic,
         state_topic=state_topic,
         availability_topic=availability_topic,
+        meter_availability_topic=meter_availability_topic,
+        health_topic=health_topic,
         payload=payload,
         removed_components=removed_components,
     )
@@ -244,7 +272,6 @@ def build_state_payload(
         "energy_delivered_wh": (
             snapshot.energy_delivered_wh
         ),
-        "last_successful_read": last_successful_read,
         "meter_lfdi": _format_lfdi(snapshot.meter_lfdi),
         "agent_version": snapshot.agent_version.value,
         "meter_software_version": (

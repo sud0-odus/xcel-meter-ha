@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .certificate import CertificateInfo, inspect_client_identity
-from .http import Ieee20305Client
+from .http import Ieee20305Client, MeterHttpError
 from .identity import normalize_lfdi
 from .models import MeterSnapshot
 from .mqtt_runtime import MqttPublisher
@@ -150,6 +150,15 @@ def validate_identity(
     return info
 
 
+def _should_invalidate_meter_profile(
+    exc: BaseException,
+) -> bool:
+    return (
+        isinstance(exc, MeterHttpError)
+        and exc.invalidates_profile
+    )
+
+
 def run_once(
     options: dict,
     profile: MeterProfile | None = None,
@@ -281,7 +290,7 @@ def main() -> int:
     poll_interval = int(options.get("poll_interval", 60))
     poll_interval = max(poll_interval, 15)
 
-    LOGGER.info("Xcel Meter HA Diagnostic v0.4.2 starting")
+    LOGGER.info("Xcel Meter HA Diagnostic v0.4.3 starting")
     LOGGER.info(
         "This build never modifies certificate files. "
         "MQTT publishing is controlled by mqtt_enabled."
@@ -314,19 +323,28 @@ def main() -> int:
             LOGGER.error("RESULT: FAIL - %s", exc)
 
             if profile is not None:
-                LOGGER.warning(
-                    "Meter profile cache cleared after failed poll; "
-                    "meter layout will be rediscovered next cycle"
-                )
+                if _should_invalidate_meter_profile(exc):
+                    if isinstance(exc, MeterHttpError):
+                        LOGGER.warning(
+                            "Meter profile cache cleared because "
+                            "cached resource returned HTTP %s: %s",
+                            exc.status,
+                            exc.path or "<unknown>",
+                        )
 
-            profile = None
+                    profile = None
+                else:
+                    LOGGER.warning(
+                        "Meter profile cache retained after failed poll; "
+                        "failure did not indicate a meter layout change"
+                    )
 
             if mqtt_publisher is not None:
                 try:
-                    mqtt_publisher.publish_offline()
+                    mqtt_publisher.publish_meter_problem()
                 except Exception as mqtt_exc:  # noqa: BLE001 - service boundary
                     LOGGER.warning(
-                        "Unable to publish MQTT offline status: %s",
+                        "Unable to publish MQTT meter problem status: %s",
                         mqtt_exc,
                     )
 
