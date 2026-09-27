@@ -153,3 +153,8 @@ The project prefers data in this order:
 
 Calculated values should be clearly identified as estimates rather than
 presented as if they came directly from the meter or utility.
+
+## Development research
+
+- [Real Itron Meter Reading Discovery](docs/discovered-meter-readings.md)
+- [Upstream Issue Review](docs/upstream-issue-review.md)
