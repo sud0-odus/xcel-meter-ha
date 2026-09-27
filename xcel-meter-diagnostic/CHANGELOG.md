@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0
+
+- Added the first Home Assistant MQTT integration layer.
+- Added Home Assistant MQTT device discovery for the three real-meter validated readings:
+  - Instantaneous Power
+  - Energy Delivered
+  - Energy Received
+- Added retained availability and state topics.
+- Added Home Assistant Supervisor MQTT service discovery so broker credentials do not need to be stored manually in app options.
+- Added `mqtt_enabled` as an opt-in setting for the initial 0.4.0 rollout.
+- MQTT publishing occurs only after a successful meter poll with all three required core readings.
+- Added MQTT runtime and discovery regression coverage.
+- Certificate files remain read-only and are never regenerated or modified by the app.
+
 ## 0.3.6
 
 - Added one automatic retry for the transient TLS handshake timeout observed during real Xcel/Itron meter discovery.

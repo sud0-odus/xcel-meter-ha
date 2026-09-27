@@ -1,5 +1,5 @@
 name: "Xcel Meter HA Diagnostic"
-version: "0.3.6"
+version: "0.4.0"
 slug: "xcel_meter_diagnostic"
 description: "Validate Xcel/Itron IEEE 2030.5 identity and meter readings directly inside Home Assistant"
 arch:
@@ -9,6 +9,8 @@ startup: application
 boot: manual
 init: false
 stage: experimental
+services:
+  - mqtt:want
 map:
   - type: addon_config
     read_only: false
@@ -23,6 +25,7 @@ options:
   timeout: 8
   poll_interval: 60
   log_level: "INFO"
+  mqtt_enabled: false
 schema:
   meter_ip: str
   meter_port: port
@@ -32,3 +35,4 @@ schema:
   timeout: int
   poll_interval: int
   log_level: list(DEBUG|INFO|WARNING|ERROR)
+  mqtt_enabled: bool

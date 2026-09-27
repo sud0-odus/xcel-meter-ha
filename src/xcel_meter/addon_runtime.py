@@ -11,6 +11,8 @@ from pathlib import Path
 from .certificate import inspect_client_identity
 from .http import Ieee20305Client
 from .identity import normalize_lfdi
+from .models import MeterSnapshot
+from .mqtt_runtime import MqttPublisher
 from .reader import MeterProfile, discover_core_profile, read_core_snapshot
 
 LOGGER = logging.getLogger("xcel_meter.addon")
@@ -148,7 +150,7 @@ def validate_identity(location: IdentityLocation, expected_lfdi: str | None) -> 
 def run_once(
     options: dict,
     profile: MeterProfile | None = None,
-) -> MeterProfile:
+) -> tuple[MeterProfile, MeterSnapshot]:
     meter_ip = str(options.get("meter_ip") or "").strip()
     if not meter_ip:
         raise RuntimeError("meter_ip is required")
@@ -240,7 +242,7 @@ def run_once(
         json.dumps(snapshot.to_dict(), sort_keys=True),
     )
 
-    return profile
+    return profile, snapshot
 
 
 def main() -> int:
@@ -254,14 +256,24 @@ def main() -> int:
     poll_interval = int(options.get("poll_interval", 60))
     poll_interval = max(poll_interval, 15)
 
-    LOGGER.info("Xcel Meter HA Diagnostic v0.3.6 starting")
-    LOGGER.info("This build does not publish MQTT or modify certificate files.")
+    LOGGER.info("Xcel Meter HA Diagnostic v0.4.0 starting")
+    LOGGER.info(
+        "This build never modifies certificate files. "
+        "MQTT publishing is controlled by mqtt_enabled."
+    )
 
     profile: MeterProfile | None = None
+    mqtt_publisher: MqttPublisher | None = None
+    mqtt_enabled = bool(options.get("mqtt_enabled", False))
+
+    LOGGER.info(
+        "MQTT publishing: %s",
+        "ENABLED" if mqtt_enabled else "DISABLED",
+    )
 
     while True:
         try:
-            profile = run_once(
+            profile, snapshot = run_once(
                 options,
                 profile,
             )
@@ -275,6 +287,48 @@ def main() -> int:
                 )
 
             profile = None
+
+            if mqtt_publisher is not None:
+                try:
+                    mqtt_publisher.publish_offline()
+                except Exception as mqtt_exc:  # noqa: BLE001 - service boundary
+                    LOGGER.warning(
+                        "Unable to publish MQTT offline status: %s",
+                        mqtt_exc,
+                    )
+
+        else:
+            if mqtt_enabled:
+                try:
+                    if mqtt_publisher is None:
+                        LOGGER.info(
+                            "MQTT publisher: initializing from validated meter snapshot"
+                        )
+
+                        mqtt_publisher = MqttPublisher.from_snapshot(
+                            snapshot
+                        )
+                        mqtt_publisher.connect()
+                        mqtt_publisher.publish_discovery()
+
+                    mqtt_publisher.publish_snapshot(snapshot)
+
+                except Exception as exc:  # noqa: BLE001 - service boundary
+                    LOGGER.error(
+                        "MQTT publishing: FAIL - %s",
+                        exc,
+                    )
+
+                    if mqtt_publisher is not None:
+                        try:
+                            mqtt_publisher.close()
+                        except Exception as close_exc:  # noqa: BLE001
+                            LOGGER.debug(
+                                "MQTT cleanup after failure: %s",
+                                close_exc,
+                            )
+
+                    mqtt_publisher = None
 
         time.sleep(poll_interval)
 
