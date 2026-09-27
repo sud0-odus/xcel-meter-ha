@@ -32,7 +32,7 @@ def test_meter_identifier_prefers_meter_lfdi():
     )
 
 
-def test_device_discovery_has_three_core_components():
+def test_device_discovery_has_expected_components():
     definition = build_device_definition(
         _snapshot()
     )
@@ -52,6 +52,10 @@ def test_device_discovery_has_three_core_components():
         "instantaneous_power",
         "energy_delivered",
         "energy_received",
+        "last_successful_read",
+        "meter_lfdi",
+        "agent_version",
+        "meter_software_version",
     }
 
 
@@ -67,37 +71,64 @@ def test_power_sensor_configuration():
     assert component["unique_id"]
 
 
-def test_delivered_energy_sensor_configuration():
-    component = build_device_definition(
+def test_energy_sensor_configuration():
+    components = build_device_definition(
         _snapshot()
-    ).payload["components"]["energy_delivered"]
+    ).payload["components"]
 
-    assert component["platform"] == "sensor"
-    assert component["device_class"] == "energy"
-    assert component["state_class"] == "total_increasing"
-    assert component["unit_of_measurement"] == "Wh"
-    assert component["unique_id"]
+    for name in (
+        "energy_delivered",
+        "energy_received",
+    ):
+        component = components[name]
+
+        assert component["platform"] == "sensor"
+        assert component["device_class"] == "energy"
+        assert component["state_class"] == "total_increasing"
+        assert component["unit_of_measurement"] == "Wh"
+        assert component["unique_id"]
 
 
-def test_received_energy_sensor_configuration():
-    component = build_device_definition(
+def test_diagnostic_sensor_configuration():
+    components = build_device_definition(
         _snapshot()
-    ).payload["components"]["energy_received"]
+    ).payload["components"]
 
-    assert component["platform"] == "sensor"
-    assert component["device_class"] == "energy"
-    assert component["state_class"] == "total_increasing"
-    assert component["unit_of_measurement"] == "Wh"
-    assert component["unique_id"]
+    for name in (
+        "last_successful_read",
+        "meter_lfdi",
+        "agent_version",
+        "meter_software_version",
+    ):
+        assert (
+            components[name]["entity_category"]
+            == "diagnostic"
+        )
+
+    assert (
+        components["last_successful_read"]["device_class"]
+        == "timestamp"
+    )
 
 
-def test_state_payload_preserves_zero_export():
+def test_state_payload_includes_diagnostics():
     payload = build_state_payload(
-        _snapshot()
+        _snapshot(),
+        last_successful_read=(
+            "2026-09-27T18:00:00+00:00"
+        ),
     )
 
     assert payload == {
         "instantaneous_power_w": 1863.0,
         "energy_delivered_wh": 40817686.0,
         "energy_received_wh": 0.0,
+        "last_successful_read": (
+            "2026-09-27T18:00:00+00:00"
+        ),
+        "meter_lfdi": (
+            "5BA70BD0DBA11778EA0773AAAB7FF2A95AA7D00F"
+        ),
+        "agent_version": "unknown",
+        "meter_software_version": "unknown",
     }

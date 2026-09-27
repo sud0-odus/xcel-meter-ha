@@ -7,7 +7,7 @@ from .models import MeterSnapshot
 
 
 APP_NAME = "xcel-meter-ha"
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.4.1"
 SUPPORT_URL = "https://github.com/sud0-odus/xcel-meter-ha"
 
 
@@ -110,6 +110,51 @@ def build_device_definition(
                     "{{ value_json.energy_received_wh }}"
                 ),
             },
+            "last_successful_read": {
+                "platform": "sensor",
+                "name": "Last Successful Read",
+                "unique_id": (
+                    f"{device_id}_last_successful_read"
+                ),
+                "device_class": "timestamp",
+                "entity_category": "diagnostic",
+                "value_template": (
+                    "{{ value_json.last_successful_read }}"
+                ),
+            },
+            "meter_lfdi": {
+                "platform": "sensor",
+                "name": "Meter LFDI",
+                "unique_id": (
+                    f"{device_id}_meter_lfdi"
+                ),
+                "entity_category": "diagnostic",
+                "value_template": (
+                    "{{ value_json.meter_lfdi }}"
+                ),
+            },
+            "agent_version": {
+                "platform": "sensor",
+                "name": "Itron Agent Version",
+                "unique_id": (
+                    f"{device_id}_agent_version"
+                ),
+                "entity_category": "diagnostic",
+                "value_template": (
+                    "{{ value_json.agent_version }}"
+                ),
+            },
+            "meter_software_version": {
+                "platform": "sensor",
+                "name": "Meter Software Version",
+                "unique_id": (
+                    f"{device_id}_meter_software_version"
+                ),
+                "entity_category": "diagnostic",
+                "value_template": (
+                    "{{ value_json.meter_software_version }}"
+                ),
+            },
         },
     }
 
@@ -123,7 +168,8 @@ def build_device_definition(
 
 def build_state_payload(
     snapshot: MeterSnapshot,
-) -> dict[str, float | None]:
+    last_successful_read: str | None = None,
+) -> dict[str, str | float | None]:
     return {
         "instantaneous_power_w": (
             snapshot.instantaneous_power_w
@@ -133,5 +179,11 @@ def build_state_payload(
         ),
         "energy_received_wh": (
             snapshot.energy_received_wh
+        ),
+        "last_successful_read": last_successful_read,
+        "meter_lfdi": snapshot.meter_lfdi or "unknown",
+        "agent_version": snapshot.agent_version.value,
+        "meter_software_version": (
+            snapshot.software_version or "unknown"
         ),
     }

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.1
+
+- Added four Home Assistant diagnostic entities to the existing Xcel Energy Smart Meter MQTT device:
+  - Last Successful Read
+  - Meter LFDI
+  - Itron Agent Version
+  - Meter Software Version
+- Marked these entities with Home Assistant's diagnostic entity category.
+- Added a timestamp entity for the locally observed time of the most recent successful validated meter read.
+- Extended the retained MQTT state payload with meter identity and version information.
+- MQTT discovery logging now reports the actual number of published Home Assistant entities.
+- Added regression coverage for the new diagnostic entities and state payload.
+
 ## 0.4.0
 
 - Added the first Home Assistant MQTT integration layer.

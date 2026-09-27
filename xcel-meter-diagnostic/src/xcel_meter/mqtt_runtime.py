@@ -6,6 +6,7 @@ import os
 import ssl
 import threading
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -241,18 +242,28 @@ class MqttPublisher:
             retain=True,
         )
 
+        component_count = len(
+            self.definition.payload["components"]
+        )
+
         LOGGER.info(
-            "MQTT discovery published: 3 Home Assistant entities"
+            "MQTT discovery published: %s Home Assistant entities",
+            component_count,
         )
 
     def publish_snapshot(
         self,
         snapshot: MeterSnapshot,
     ) -> None:
+        observed_at = datetime.now(UTC).isoformat()
+
         self._publish(
             self.definition.state_topic,
             json.dumps(
-                build_state_payload(snapshot),
+                build_state_payload(
+                    snapshot,
+                    last_successful_read=observed_at,
+                ),
                 separators=(",", ":"),
                 sort_keys=True,
             ),
