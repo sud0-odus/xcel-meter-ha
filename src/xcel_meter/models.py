@@ -6,6 +6,7 @@ from typing import Any
 
 
 class AgentVersion(str, Enum):
+    UNKNOWN = "unknown"
     V2 = "2.x"
     V3 = "3.x"
 

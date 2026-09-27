@@ -21,15 +21,27 @@ class XmlClient(Protocol):
     def get_xml(self, path: str) -> str: ...
 
 
-def determine_agent_version(client: XmlClient) -> tuple[AgentVersion, str | None, str | None]:
+def determine_agent_version(
+    client: XmlClient,
+) -> tuple[AgentVersion, str | None, str | None]:
     root = parse_xml(client.get_xml("/sdev/sdi"))
     software_version = child_text(root, "softwareVersion")
     meter_lfdi = child_text(root, "lFDI")
+
+    if not software_version:
+        return AgentVersion.UNKNOWN, None, meter_lfdi
+
     try:
-        major = int((software_version or "").split(".", 1)[0])
+        major = int(software_version.split(".", 1)[0])
     except ValueError:
-        major = 2
-    return (AgentVersion.V3 if major == 3 else AgentVersion.V2, software_version, meter_lfdi)
+        return AgentVersion.UNKNOWN, software_version, meter_lfdi
+
+    if major == 2:
+        return AgentVersion.V2, software_version, meter_lfdi
+    if major == 3:
+        return AgentVersion.V3, software_version, meter_lfdi
+
+    return AgentVersion.UNKNOWN, software_version, meter_lfdi
 
 
 def find_electricity_usage_point(client: XmlClient) -> tuple[str, str, int]:
@@ -89,51 +101,67 @@ def parse_reading_type(xml_text: str) -> ReadingTypeInfo:
 
 
 def classify_reading_type(
-    info: ReadingTypeInfo, description: str, agent_version: AgentVersion
+    info: ReadingTypeInfo,
+    description: str,
+    agent_version: AgentVersion,
 ) -> ReadingKind:
+    # Some real Itron meters omit <phase> for aggregate readings instead
+    # of explicitly returning phase=0. Normalize only for classification.
+    phase = 0 if info.phase is None else info.phase
+
     t = (
         info.accumulation_behaviour,
         info.data_qualifier,
         info.flow_direction,
         info.kind,
-        info.phase,
+        phase,
         info.uom,
     )
     description_lower = description.lower()
 
-    # Official Xcel Launchpad SDK enum values.
-    if agent_version == AgentVersion.V2:
-        mapping = {
-            (12, 2, 1, 8, 0, 38): ReadingKind.INSTANTANEOUS_DEMAND,
-            (9, 2, 1, 12, 0, 72): ReadingKind.CURRENT_SUMMATION_DELIVERED,
-            (9, 2, 19, 12, 0, 72): ReadingKind.CURRENT_SUMMATION_RECEIVED,
-        }
-        return mapping.get(t, ReadingKind.UNKNOWN)
+    # Agent v2 signatures from the Xcel Launchpad SDK reference.
+    v2_mapping = {
+        (12, 2, 1, 8, 0, 38): ReadingKind.INSTANTANEOUS_DEMAND,
+        (9, 2, 1, 12, 0, 72): ReadingKind.CURRENT_SUMMATION_DELIVERED,
+        (9, 2, 19, 12, 0, 72): ReadingKind.CURRENT_SUMMATION_RECEIVED,
+    }
 
-    # Agent v3 changed dataQualifier to N/A and introduced interval/TOU readings.
+    if t in v2_mapping:
+        return v2_mapping[t]
+
+    # Newer Itron/Launchpad-style signatures use dataQualifier=0.
+    #
+    # These are classified from the ReadingType itself rather than trusting
+    # a software-version label. This matters because real meters may omit
+    # softwareVersion from /sdev/sdi.
     if t == (12, 0, 1, 8, 0, 38):
         return ReadingKind.INSTANTANEOUS_DEMAND
+
     if t == (4, 0, 1, 12, 0, 72):
         return ReadingKind.WH_INTERVAL_DELIVERED
+
     if t == (4, 0, 19, 12, 0, 72):
         return ReadingKind.WH_INTERVAL_RECEIVED
+
     if t == (4, 0, 4, 12, 0, 72):
         return ReadingKind.WH_INTERVAL_NET
 
-    # Itron v3 exposes identical ReadingType tuples for current summation and TOU Wh;
-    # the official SDK deliberately uses MeterReading.description to distinguish them.
+    # Current summation and TOU Wh can share the same ReadingType tuple.
+    # MeterReading.description is therefore needed to distinguish them.
     if t == (9, 0, 1, 12, 0, 72):
         return (
             ReadingKind.TOU_WH_DELIVERED
             if "tou" in description_lower
             else ReadingKind.CURRENT_SUMMATION_DELIVERED
         )
+
     if t == (9, 0, 19, 12, 0, 72):
         return (
             ReadingKind.TOU_WH_RECEIVED
             if "tou" in description_lower
             else ReadingKind.CURRENT_SUMMATION_RECEIVED
         )
+
     return ReadingKind.UNKNOWN
 
 
