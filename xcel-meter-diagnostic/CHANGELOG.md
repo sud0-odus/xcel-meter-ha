@@ -1,3 +1,30 @@
+## 0.4.2
+
+### Added
+
+- Added `energy_export_enabled` configuration option.
+- Grid-export / Energy Received monitoring can now be disabled for homes
+  that do not export electricity.
+- Added Client LFDI diagnostic.
+- Added Certificate Expiration diagnostic.
+- Added Certificate Days Remaining diagnostic.
+- Added readable Home Assistant formatting for meter and client LFDIs.
+
+### Changed
+
+- Export-disabled installations now poll only Instantaneous Power and
+  Energy Delivered as required core readings.
+- Core health becomes 2/2 when export monitoring is disabled and remains
+  3/3 when export monitoring is enabled.
+- Energy Received is omitted from MQTT state and Home Assistant discovery
+  when export monitoring is disabled.
+- Existing Energy Received MQTT discovery is explicitly cleaned up when
+  export monitoring is disabled.
+- Certificate diagnostics reuse the already validated client certificate
+  information instead of rereading the certificate.
+- Raw LFDI identity values remain unchanged internally; formatting is
+  presentation-only.
+
 # Changelog
 
 ## 0.4.1

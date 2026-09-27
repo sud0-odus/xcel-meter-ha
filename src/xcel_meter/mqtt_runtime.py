@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 
 import paho.mqtt.client as mqtt
 
+from .certificate import CertificateInfo
 from .models import MeterSnapshot
 from .mqtt_discovery import (
     MqttDeviceDefinition,
@@ -105,9 +106,11 @@ class MqttPublisher:
         self,
         settings: SupervisorMqttSettings,
         definition: MqttDeviceDefinition,
+        include_received: bool = True,
     ) -> None:
         self.settings = settings
         self.definition = definition
+        self.include_received = include_received
         self._connected = threading.Event()
 
         client_id = (
@@ -146,11 +149,19 @@ class MqttPublisher:
     def from_snapshot(
         cls,
         snapshot: MeterSnapshot,
+        include_received: bool = True,
     ) -> MqttPublisher:
         settings = load_supervisor_mqtt_settings()
-        definition = build_device_definition(snapshot)
+        definition = build_device_definition(
+            snapshot,
+            include_received=include_received,
+        )
 
-        return cls(settings, definition)
+        return cls(
+            settings,
+            definition,
+            include_received=include_received,
+        )
 
     def _on_connect(
         self,
@@ -232,6 +243,42 @@ class MqttPublisher:
             )
 
     def publish_discovery(self) -> None:
+        if self.definition.removed_components:
+            cleanup_payload = dict(
+                self.definition.payload
+            )
+            cleanup_components = dict(
+                self.definition.payload["components"]
+            )
+
+            for component_id in (
+                self.definition.removed_components
+            ):
+                cleanup_components[component_id] = {
+                    "platform": "sensor",
+                }
+
+            cleanup_payload["components"] = (
+                cleanup_components
+            )
+
+            self._publish(
+                self.definition.discovery_topic,
+                json.dumps(
+                    cleanup_payload,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ),
+                retain=True,
+            )
+
+            LOGGER.info(
+                "MQTT discovery cleanup published for: %s",
+                ", ".join(
+                    self.definition.removed_components
+                ),
+            )
+
         self._publish(
             self.definition.discovery_topic,
             json.dumps(
@@ -254,6 +301,7 @@ class MqttPublisher:
     def publish_snapshot(
         self,
         snapshot: MeterSnapshot,
+        certificate_info: CertificateInfo | None = None,
     ) -> None:
         observed_at = datetime.now(UTC).isoformat()
 
@@ -263,6 +311,8 @@ class MqttPublisher:
                 build_state_payload(
                     snapshot,
                     last_successful_read=observed_at,
+                    include_received=self.include_received,
+                    certificate_info=certificate_info,
                 ),
                 separators=(",", ":"),
                 sort_keys=True,
@@ -276,13 +326,20 @@ class MqttPublisher:
             retain=True,
         )
 
-        LOGGER.info(
-            "MQTT state published: power=%s W delivered=%s Wh "
-            "received=%s Wh",
-            snapshot.instantaneous_power_w,
-            snapshot.energy_delivered_wh,
-            snapshot.energy_received_wh,
-        )
+        if self.include_received:
+            LOGGER.info(
+                "MQTT state published: power=%s W delivered=%s Wh "
+                "received=%s Wh",
+                snapshot.instantaneous_power_w,
+                snapshot.energy_delivered_wh,
+                snapshot.energy_received_wh,
+            )
+        else:
+            LOGGER.info(
+                "MQTT state published: power=%s W delivered=%s Wh",
+                snapshot.instantaneous_power_w,
+                snapshot.energy_delivered_wh,
+            )
 
     def publish_offline(self) -> None:
         if not self._connected.is_set():

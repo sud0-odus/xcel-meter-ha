@@ -19,10 +19,9 @@ from .models import (
 from .xmlutil import child_text, parse_xml
 
 
-CORE_KINDS = {
+BASE_CORE_KINDS = {
     ReadingKind.INSTANTANEOUS_DEMAND,
     ReadingKind.CURRENT_SUMMATION_DELIVERED,
-    ReadingKind.CURRENT_SUMMATION_RECEIVED,
 }
 
 
@@ -87,7 +86,10 @@ def _unit_for(kind: ReadingKind) -> str:
     return ""
 
 
-def discover_core_profile(client: XmlClient) -> MeterProfile:
+def discover_core_profile(
+    client: XmlClient,
+    include_received: bool = True,
+) -> MeterProfile:
     agent_version, software_version, meter_lfdi = determine_agent_version(
         client
     )
@@ -103,10 +105,17 @@ def discover_core_profile(client: XmlClient) -> MeterProfile:
         agent_version,
     )
 
+    wanted = set(BASE_CORE_KINDS)
+
+    if include_received:
+        wanted.add(
+            ReadingKind.CURRENT_SUMMATION_RECEIVED
+        )
+
     core_readings = tuple(
         (descriptor, info)
         for descriptor, info in descriptors
-        if descriptor.kind in CORE_KINDS
+        if descriptor.kind in wanted
         and descriptor.reading_link
     )
 

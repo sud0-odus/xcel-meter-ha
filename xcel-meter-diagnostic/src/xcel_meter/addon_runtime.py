@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .certificate import inspect_client_identity
+from .certificate import CertificateInfo, inspect_client_identity
 from .http import Ieee20305Client
 from .identity import normalize_lfdi
 from .models import MeterSnapshot
@@ -97,7 +97,10 @@ def _format_lfdi(value: str) -> str:
     return "-".join(normalized[i : i + 5] for i in range(0, len(normalized), 5))
 
 
-def validate_identity(location: IdentityLocation, expected_lfdi: str | None) -> str:
+def validate_identity(
+    location: IdentityLocation,
+    expected_lfdi: str | None,
+) -> CertificateInfo:
     info = inspect_client_identity(location.cert_path, location.key_path)
     actual = normalize_lfdi(info.lfdi)
 
@@ -144,13 +147,13 @@ def validate_identity(location: IdentityLocation, expected_lfdi: str | None) -> 
             "Certificate expires within 90 days. Generate and provision a replacement before expiration."
         )
 
-    return actual
+    return info
 
 
 def run_once(
     options: dict,
     profile: MeterProfile | None = None,
-) -> tuple[MeterProfile, MeterSnapshot]:
+) -> tuple[MeterProfile, MeterSnapshot, CertificateInfo]:
     meter_ip = str(options.get("meter_ip") or "").strip()
     if not meter_ip:
         raise RuntimeError("meter_ip is required")
@@ -160,13 +163,19 @@ def run_once(
     source = str(options.get("identity_source", "auto"))
     expected_lfdi = str(options.get("expected_lfdi") or "").strip() or None
     legacy_slug = str(options.get("legacy_addon_slug") or "").strip() or None
+    energy_export_enabled = bool(
+        options.get("energy_export_enabled", False)
+    )
 
     LOGGER.info("============================================================")
     LOGGER.info("Xcel Meter HA diagnostic run")
     LOGGER.info("Meter endpoint: %s:%s", meter_ip, meter_port)
 
     location = find_identity(source, legacy_addon_slug=legacy_slug)
-    validate_identity(location, expected_lfdi)
+    identity_info = validate_identity(
+        location,
+        expected_lfdi,
+    )
 
     client = Ieee20305Client(
         meter_ip,
@@ -180,7 +189,10 @@ def run_once(
             "Meter profile cache: MISS - discovering meter layout"
         )
 
-        profile = discover_core_profile(client)
+        profile = discover_core_profile(
+            client,
+            include_received=energy_export_enabled,
+        )
 
         LOGGER.info(
             "Meter profile cache: READY - %s core reading paths",
@@ -205,13 +217,26 @@ def run_once(
     LOGGER.info("UsagePoint: %s", snapshot.usage_point_href)
     LOGGER.info("Instantaneous power: %s W", snapshot.instantaneous_power_w)
     LOGGER.info("Energy delivered: %s Wh", snapshot.energy_delivered_wh)
-    LOGGER.info("Energy received: %s Wh", snapshot.energy_received_wh)
+
+    if energy_export_enabled:
+        LOGGER.info(
+            "Energy received: %s Wh",
+            snapshot.energy_received_wh,
+        )
+    else:
+        LOGGER.info(
+            "Energy received/export monitoring: DISABLED"
+        )
 
     core_values = {
         "instantaneous_power": snapshot.instantaneous_power_w,
         "energy_delivered": snapshot.energy_delivered_wh,
-        "energy_received": snapshot.energy_received_wh,
     }
+
+    if energy_export_enabled:
+        core_values["energy_received"] = (
+            snapshot.energy_received_wh
+        )
 
     missing = [
         name
@@ -242,7 +267,7 @@ def run_once(
         json.dumps(snapshot.to_dict(), sort_keys=True),
     )
 
-    return profile, snapshot
+    return profile, snapshot, identity_info
 
 
 def main() -> int:
@@ -256,7 +281,7 @@ def main() -> int:
     poll_interval = int(options.get("poll_interval", 60))
     poll_interval = max(poll_interval, 15)
 
-    LOGGER.info("Xcel Meter HA Diagnostic v0.4.1 starting")
+    LOGGER.info("Xcel Meter HA Diagnostic v0.4.2 starting")
     LOGGER.info(
         "This build never modifies certificate files. "
         "MQTT publishing is controlled by mqtt_enabled."
@@ -265,6 +290,14 @@ def main() -> int:
     profile: MeterProfile | None = None
     mqtt_publisher: MqttPublisher | None = None
     mqtt_enabled = bool(options.get("mqtt_enabled", False))
+    energy_export_enabled = bool(
+        options.get("energy_export_enabled", False)
+    )
+
+    LOGGER.info(
+        "Energy export monitoring: %s",
+        "ENABLED" if energy_export_enabled else "DISABLED",
+    )
 
     LOGGER.info(
         "MQTT publishing: %s",
@@ -273,7 +306,7 @@ def main() -> int:
 
     while True:
         try:
-            profile, snapshot = run_once(
+            profile, snapshot, identity_info = run_once(
                 options,
                 profile,
             )
@@ -306,12 +339,16 @@ def main() -> int:
                         )
 
                         mqtt_publisher = MqttPublisher.from_snapshot(
-                            snapshot
+                            snapshot,
+                            include_received=energy_export_enabled,
                         )
                         mqtt_publisher.connect()
                         mqtt_publisher.publish_discovery()
 
-                    mqtt_publisher.publish_snapshot(snapshot)
+                    mqtt_publisher.publish_snapshot(
+                        snapshot,
+                        certificate_info=identity_info,
+                    )
 
                 except Exception as exc:  # noqa: BLE001 - service boundary
                     LOGGER.error(

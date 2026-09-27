@@ -1,3 +1,6 @@
+from datetime import UTC, datetime
+from types import SimpleNamespace
+
 from xcel_meter.models import AgentVersion, MeterSnapshot
 from xcel_meter.mqtt_discovery import (
     build_device_definition,
@@ -24,6 +27,24 @@ def _snapshot() -> MeterSnapshot:
     )
 
 
+def _certificate_info():
+    return SimpleNamespace(
+        lfdi=(
+            "65C05CAD1B2AA01D1AE323D973B65AED20CD2403"
+        ),
+        not_after=datetime(
+            2029,
+            9,
+            25,
+            1,
+            34,
+            47,
+            tzinfo=UTC,
+        ),
+        days_remaining=1093,
+    )
+
+
 def test_meter_identifier_prefers_meter_lfdi():
     snapshot = _snapshot()
 
@@ -32,9 +53,10 @@ def test_meter_identifier_prefers_meter_lfdi():
     )
 
 
-def test_device_discovery_has_expected_components():
+def test_device_discovery_has_expected_components_with_export():
     definition = build_device_definition(
-        _snapshot()
+        _snapshot(),
+        include_received=True,
     )
 
     payload = definition.payload
@@ -56,7 +78,38 @@ def test_device_discovery_has_expected_components():
         "meter_lfdi",
         "agent_version",
         "meter_software_version",
+        "client_lfdi",
+        "certificate_expiration",
+        "certificate_days_remaining",
     }
+
+    assert len(components) == 10
+
+
+def test_device_discovery_has_expected_components_without_export():
+    definition = build_device_definition(
+        _snapshot(),
+        include_received=False,
+    )
+
+    components = definition.payload["components"]
+
+    assert set(components) == {
+        "instantaneous_power",
+        "energy_delivered",
+        "last_successful_read",
+        "meter_lfdi",
+        "agent_version",
+        "meter_software_version",
+        "client_lfdi",
+        "certificate_expiration",
+        "certificate_days_remaining",
+    }
+
+    assert len(components) == 9
+    assert definition.removed_components == (
+        "energy_received",
+    )
 
 
 def test_power_sensor_configuration():
@@ -73,7 +126,8 @@ def test_power_sensor_configuration():
 
 def test_energy_sensor_configuration():
     components = build_device_definition(
-        _snapshot()
+        _snapshot(),
+        include_received=True,
     ).payload["components"]
 
     for name in (
@@ -99,6 +153,9 @@ def test_diagnostic_sensor_configuration():
         "meter_lfdi",
         "agent_version",
         "meter_software_version",
+        "client_lfdi",
+        "certificate_expiration",
+        "certificate_days_remaining",
     ):
         assert (
             components[name]["entity_category"]
@@ -110,13 +167,27 @@ def test_diagnostic_sensor_configuration():
         == "timestamp"
     )
 
+    assert (
+        components["certificate_expiration"]["device_class"]
+        == "timestamp"
+    )
 
-def test_state_payload_includes_diagnostics():
+    assert (
+        components["certificate_days_remaining"][
+            "unit_of_measurement"
+        ]
+        == "d"
+    )
+
+
+def test_state_payload_includes_certificate_diagnostics():
     payload = build_state_payload(
         _snapshot(),
         last_successful_read=(
             "2026-09-27T18:00:00+00:00"
         ),
+        include_received=True,
+        certificate_info=_certificate_info(),
     )
 
     assert payload == {
@@ -127,8 +198,44 @@ def test_state_payload_includes_diagnostics():
             "2026-09-27T18:00:00+00:00"
         ),
         "meter_lfdi": (
-            "5BA70BD0DBA11778EA0773AAAB7FF2A95AA7D00F"
+            "5BA70-BD0DB-A1177-8EA07-73AAA-B7FF2-A95AA-7D00F"
         ),
         "agent_version": "unknown",
         "meter_software_version": "unknown",
+        "client_lfdi": (
+            "65C05-CAD1B-2AA01-D1AE3-23D97-3B65A-ED20C-D2403"
+        ),
+        "certificate_expiration": (
+            "2029-09-25T01:34:47+00:00"
+        ),
+        "certificate_days_remaining": 1093,
     }
+
+
+def test_state_payload_without_export_omits_received_value():
+    payload = build_state_payload(
+        _snapshot(),
+        last_successful_read=(
+            "2026-09-27T18:00:00+00:00"
+        ),
+        include_received=False,
+        certificate_info=_certificate_info(),
+    )
+
+    assert "energy_received_wh" not in payload
+
+    assert payload["instantaneous_power_w"] == 1863.0
+    assert payload["energy_delivered_wh"] == 40817686.0
+    assert payload["certificate_days_remaining"] == 1093
+
+
+def test_state_payload_without_certificate_info_is_supported():
+    payload = build_state_payload(
+        _snapshot(),
+        include_received=False,
+        certificate_info=None,
+    )
+
+    assert "client_lfdi" not in payload
+    assert "certificate_expiration" not in payload
+    assert "certificate_days_remaining" not in payload
