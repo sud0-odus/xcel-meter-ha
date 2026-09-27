@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.4
+
+- Marked Instantaneous Demand, Current Summation Delivered, and Current Summation Received as validated against real Xcel/Itron hardware.
+- Added one automatic retry for the transient TLS `BAD_SIGNATURE` condition observed during real-meter testing.
+- `RESULT: PASS` now requires all three core meter readings to be available.
+- Added connection-health and last-successful-read diagnostics.
+- Moved individual MeterReading discovery details and normalized JSON snapshots to DEBUG logging.
+- Added a README Mermaid overview of validated and discovered meter capabilities.
+- Expanded real-meter documentation and data-provenance guidance.
+
 ## 0.3.3
 
 - Added support for real-world Itron ReadingType responses where `phase` may be omitted instead of explicitly reported as `0`.

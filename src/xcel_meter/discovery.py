@@ -216,7 +216,7 @@ def discover_meter_readings(
             info.uom,
         )
 
-        LOGGER.info(
+        LOGGER.debug(
             "MeterReading candidate: description=%r reading=%s type=%s tuple=%s classified=%s",
             reading.description,
             reading.reading_link,

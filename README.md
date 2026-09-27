@@ -96,3 +96,60 @@ pytest -q
 - Rotate before expiry and register/provision the replacement identity before switching.
 - `all_addon_configs` is used read-only only in the v0.3 migration/diagnostic build. The stable app
   is intended to use only its own `addon_config` after migration.
+
+## Real-meter validation
+
+`xcel-meter-ha` is being validated against a real Xcel Energy / Itron
+meter, not only simulators and fixtures.
+
+### Current validation status
+
+- ✅ Mutual TLS using the provisioned IEEE 2030.5 client certificate
+- ✅ Certificate-derived LFDI validation
+- ✅ Active electricity UsagePoint discovery
+- ✅ 22 MeterReading resources discovered
+- ✅ Instantaneous Demand read from real hardware
+- ✅ Current Summation Delivered read from real hardware
+- ✅ Current Summation Received read from real hardware
+- 🧪 Interval, TOU, demand, VAh, VARh, and power-factor resources
+  discovered and being evaluated for future Home Assistant entities
+
+```mermaid
+flowchart TD
+    M["Xcel / Itron Meter<br/>22 discovered MeterReadings"]
+
+    M --> CORE["✅ Real-meter validated"]
+    CORE --> P["Instantaneous Demand<br/>Current grid power"]
+    CORE --> D["Current Summation Delivered<br/>Cumulative grid import"]
+    CORE --> R["Current Summation Received<br/>Cumulative grid export"]
+
+    M --> ENERGY["🧪 Energy detail"]
+    ENERGY --> TOU["TOU WH<br/>Delivered / Received"]
+    ENERGY --> INT["Interval WH<br/>Delivered / Received / Net"]
+
+    M --> DEMAND["🧪 Demand"]
+    DEMAND --> MAXD["Max Demand Delivered"]
+    DEMAND --> MAXR["Max Demand Received"]
+
+    M --> QUALITY["🧪 Power quality"]
+    QUALITY --> PF["Power Factor<br/>Overall + Phase A/B/C"]
+    QUALITY --> VAH["VAh<br/>Delivered / Received"]
+    QUALITY --> VARH["VARh<br/>Delivered / Received"]
+```
+
+Example values in project documentation are illustrative unless explicitly
+identified as test-fixture data.
+
+See [Real Itron Meter Reading Discovery](docs/discovered-meter-readings.md)
+for the detailed technical and user-friendly reading catalog.
+
+### Data trust model
+
+The project prefers data in this order:
+
+1. **Meter-reported facts**
+2. **Utility-provided facts**
+3. **Locally derived values**
+
+Calculated values should be clearly identified as estimates rather than
+presented as if they came directly from the meter or utility.

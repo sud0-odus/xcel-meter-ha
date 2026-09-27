@@ -1,14 +1,23 @@
 from __future__ import annotations
 
+import logging
 import socket
 import ssl
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
 
+LOGGER = logging.getLogger("xcel_meter.http")
+
+
 class MeterHttpError(RuntimeError):
     pass
+
+
+def _is_transient_bad_signature(exc: ssl.SSLError) -> bool:
+    return "bad signature" in str(exc).lower()
 
 
 @dataclass(frozen=True)
@@ -117,6 +126,7 @@ class Ieee20305Client:
         parsed = urlsplit(path)
         if parsed.scheme or parsed.netloc:
             raise ValueError("Meter request path must be relative, e.g. /sdev/sdi")
+
         request_path = path if path.startswith("/") else f"/{path}"
         request = (
             f"GET {request_path} HTTP/1.1\r\n"
@@ -126,35 +136,57 @@ class Ieee20305Client:
             "Connection: close\r\n\r\n"
         ).encode("ascii")
 
-        try:
-            with (
-                socket.create_connection((self.host, self.port), timeout=self.timeout) as raw,
-                self._ssl_context.wrap_socket(raw, server_hostname=self.host) as tls,
-            ):
-                tls.settimeout(self.timeout)
-                tls.sendall(request)
-                chunks: list[bytes] = []
-                while True:
-                    chunk = tls.recv(16384)
-                    if not chunk:
-                        break
-                    chunks.append(chunk)
-                cipher = tls.cipher()[0] if tls.cipher() else None
-        except ssl.SSLError as exc:
-            raise MeterHttpError(classify_ssl_error(exc)) from exc
-        except (ConnectionRefusedError, TimeoutError, OSError) as exc:
-            raise MeterHttpError(
-                f"TCP connection to {self.host}:{self.port} failed: {exc}"
-            ) from exc
+        for attempt in range(2):
+            try:
+                with (
+                    socket.create_connection(
+                        (self.host, self.port),
+                        timeout=self.timeout,
+                    ) as raw,
+                    self._ssl_context.wrap_socket(
+                        raw,
+                        server_hostname=self.host,
+                    ) as tls,
+                ):
+                    tls.settimeout(self.timeout)
+                    tls.sendall(request)
 
-        response = parse_http_response(b"".join(chunks), cipher)
-        if not 200 <= response.status < 300:
-            preview = response.text.strip().replace("\n", " ")[:300]
-            raise MeterHttpError(
-                f"Meter returned HTTP {response.status} {response.reason} for {request_path}. "
-                f"Response: {preview or '<empty>'}"
-            )
-        return response
+                    chunks: list[bytes] = []
+                    while True:
+                        chunk = tls.recv(16384)
+                        if not chunk:
+                            break
+                        chunks.append(chunk)
+
+                    cipher = tls.cipher()[0] if tls.cipher() else None
+
+            except ssl.SSLError as exc:
+                if _is_transient_bad_signature(exc) and attempt == 0:
+                    LOGGER.warning(
+                        "Transient TLS BAD_SIGNATURE from meter; retrying request once"
+                    )
+                    time.sleep(0.25)
+                    continue
+
+                raise MeterHttpError(classify_ssl_error(exc)) from exc
+
+            except (ConnectionRefusedError, TimeoutError, OSError) as exc:
+                raise MeterHttpError(
+                    f"TCP connection to {self.host}:{self.port} failed: {exc}"
+                ) from exc
+
+            response = parse_http_response(b"".join(chunks), cipher)
+
+            if not 200 <= response.status < 300:
+                preview = response.text.strip().replace("\n", " ")[:300]
+                raise MeterHttpError(
+                    f"Meter returned HTTP {response.status} {response.reason} "
+                    f"for {request_path}. Response: {preview or '<empty>'}"
+                )
+
+            return response
+
+        raise MeterHttpError("Meter request retry loop exhausted unexpectedly")
 
     def get_xml(self, path: str) -> str:
         return self.get(path).text

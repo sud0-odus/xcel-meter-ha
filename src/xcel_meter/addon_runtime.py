@@ -5,6 +5,7 @@ import logging
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .certificate import inspect_client_identity
@@ -179,8 +180,41 @@ def run_once(options: dict) -> None:
     LOGGER.info("Instantaneous power: %s W", snapshot.instantaneous_power_w)
     LOGGER.info("Energy delivered: %s Wh", snapshot.energy_delivered_wh)
     LOGGER.info("Energy received: %s Wh", snapshot.energy_received_wh)
+
+    core_values = {
+        "instantaneous_power": snapshot.instantaneous_power_w,
+        "energy_delivered": snapshot.energy_delivered_wh,
+        "energy_received": snapshot.energy_received_wh,
+    }
+
+    missing = [
+        name
+        for name, value in core_values.items()
+        if value is None
+    ]
+
+    LOGGER.info(
+        "Core readings available: %s/%s",
+        len(core_values) - len(missing),
+        len(core_values),
+    )
+
+    if missing:
+        raise RuntimeError(
+            "IEEE 2030.5 connection succeeded, but required core readings "
+            f"were unavailable: {', '.join(missing)}"
+        )
+
+    observed_at = datetime.now(UTC).isoformat()
+
+    LOGGER.info("Connection health: HEALTHY")
+    LOGGER.info("Last successful read (UTC observation): %s", observed_at)
     LOGGER.info("RESULT: PASS")
-    LOGGER.info("Normalized snapshot: %s", json.dumps(snapshot.to_dict(), sort_keys=True))
+
+    LOGGER.debug(
+        "Normalized snapshot: %s",
+        json.dumps(snapshot.to_dict(), sort_keys=True),
+    )
 
 
 def main() -> int:
@@ -194,7 +228,7 @@ def main() -> int:
     poll_interval = int(options.get("poll_interval", 60))
     poll_interval = max(poll_interval, 15)
 
-    LOGGER.info("Xcel Meter HA Diagnostic v0.3.3 starting")
+    LOGGER.info("Xcel Meter HA Diagnostic v0.3.4 starting")
     LOGGER.info("This build does not publish MQTT or modify certificate files.")
 
     while True:

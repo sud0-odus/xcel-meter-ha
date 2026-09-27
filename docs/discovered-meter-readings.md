@@ -22,6 +22,24 @@ The purpose is to distinguish:
 | Validated | A real-meter value has been successfully retrieved and interpreted. |
 | Future | Useful resource discovered, but full retrieval/support is not implemented yet. |
 
+## Validated on real Xcel/Itron hardware
+
+The following core readings have now been successfully retrieved from a
+real Xcel Energy / Itron meter through mutual TLS and IEEE 2030.5:
+
+| Reading | Status | Intended Home Assistant role |
+|---|---|---|
+| Instantaneous Demand | ✅ Real-meter validated | Current grid power |
+| Current Summation Delivered | ✅ Real-meter validated | Cumulative grid import energy |
+| Current Summation Received | ✅ Real-meter validated | Cumulative grid export energy |
+
+Validation means that the complete path has succeeded:
+
+`certificate -> TLS -> IEEE 2030.5 -> UsagePoint -> MeterReading -> ReadingType -> Reading value`
+
+Specific household readings are intentionally not published in this
+documentation. Example values elsewhere in this document remain illustrative.
+
 ## Discovery summary
 
 The real meter advertised **22 MeterReading resources** under `/upt/1/mr`.
