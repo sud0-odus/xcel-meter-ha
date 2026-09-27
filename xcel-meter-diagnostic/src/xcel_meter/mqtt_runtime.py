@@ -6,7 +6,6 @@ import os
 import ssl
 import threading
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -303,14 +302,11 @@ class MqttPublisher:
         snapshot: MeterSnapshot,
         certificate_info: CertificateInfo | None = None,
     ) -> None:
-        observed_at = datetime.now(UTC).isoformat()
-
         self._publish(
             self.definition.state_topic,
             json.dumps(
                 build_state_payload(
                     snapshot,
-                    last_successful_read=observed_at,
                     include_received=self.include_received,
                     certificate_info=certificate_info,
                 ),

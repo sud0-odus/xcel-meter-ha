@@ -261,7 +261,6 @@ def build_device_definition(
 
 def build_state_payload(
     snapshot: MeterSnapshot,
-    last_successful_read: str | None = None,
     include_received: bool = True,
     certificate_info: CertificateInfo | None = None,
 ) -> dict[str, str | float | int | None]:

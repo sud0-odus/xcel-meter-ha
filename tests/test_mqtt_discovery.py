@@ -184,9 +184,6 @@ def test_diagnostic_sensor_configuration():
 def test_state_payload_includes_certificate_diagnostics():
     payload = build_state_payload(
         _snapshot(),
-        last_successful_read=(
-            "2026-09-27T18:00:00+00:00"
-        ),
         include_received=True,
         certificate_info=_certificate_info(),
     )
@@ -195,9 +192,6 @@ def test_state_payload_includes_certificate_diagnostics():
         "instantaneous_power_w": 1863.0,
         "energy_delivered_wh": 40817686.0,
         "energy_received_wh": 0.0,
-        "last_successful_read": (
-            "2026-09-27T18:00:00+00:00"
-        ),
         "meter_lfdi": (
             "5BA70-BD0DB-A1177-8EA07-73AAA-B7FF2-A95AA-7D00F"
         ),
@@ -216,9 +210,6 @@ def test_state_payload_includes_certificate_diagnostics():
 def test_state_payload_without_export_omits_received_value():
     payload = build_state_payload(
         _snapshot(),
-        last_successful_read=(
-            "2026-09-27T18:00:00+00:00"
-        ),
         include_received=False,
         certificate_info=_certificate_info(),
     )
