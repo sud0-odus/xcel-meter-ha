@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from .certificate import generate_client_identity
 from .http import Ieee20305Client
@@ -126,7 +126,7 @@ def main() -> int:
             print(json.dumps(snapshot.to_dict(), indent=2 if args.pretty else None, sort_keys=True))
             return 0
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - CLI boundary
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 

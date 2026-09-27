@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-import time
-from typing import Iterable
 
 from .certificate import inspect_client_identity
 from .http import Ieee20305Client
@@ -192,8 +192,7 @@ def main() -> int:
     )
 
     poll_interval = int(options.get("poll_interval", 60))
-    if poll_interval < 15:
-        poll_interval = 15
+    poll_interval = max(poll_interval, 15)
 
     LOGGER.info("Xcel Meter HA Diagnostic v0.3.0 starting")
     LOGGER.info("This build does not publish MQTT or modify certificate files.")

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
 import socket
 import ssl
+from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlsplit
 
 
@@ -126,20 +126,22 @@ class Ieee20305Client:
         ).encode("ascii")
 
         try:
-            with socket.create_connection((self.host, self.port), timeout=self.timeout) as raw:
-                with self._ssl_context.wrap_socket(raw, server_hostname=self.host) as tls:
-                    tls.settimeout(self.timeout)
-                    tls.sendall(request)
-                    chunks: list[bytes] = []
-                    while True:
-                        chunk = tls.recv(16384)
-                        if not chunk:
-                            break
-                        chunks.append(chunk)
-                    cipher = tls.cipher()[0] if tls.cipher() else None
+            with (
+                socket.create_connection((self.host, self.port), timeout=self.timeout) as raw,
+                self._ssl_context.wrap_socket(raw, server_hostname=self.host) as tls,
+            ):
+                tls.settimeout(self.timeout)
+                tls.sendall(request)
+                chunks: list[bytes] = []
+                while True:
+                    chunk = tls.recv(16384)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                cipher = tls.cipher()[0] if tls.cipher() else None
         except ssl.SSLError as exc:
             raise MeterHttpError(classify_ssl_error(exc)) from exc
-        except (ConnectionRefusedError, TimeoutError, socket.timeout, OSError) as exc:
+        except (ConnectionRefusedError, TimeoutError, OSError) as exc:
             raise MeterHttpError(
                 f"TCP connection to {self.host}:{self.port} failed: {exc}"
             ) from exc
