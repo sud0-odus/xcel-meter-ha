@@ -30,6 +30,7 @@ def build_ssl_context(cert_path: Path, key_path: Path) -> ssl.SSLContext:
     context.verify_mode = ssl.CERT_NONE
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.maximum_version = ssl.TLSVersion.TLSv1_2
+    context.options |= ssl.OP_LEGACY_SERVER_CONNECT
     context.set_ciphers("ECDHE-ECDSA-AES128-CCM8:@SECLEVEL=0")
     context.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
     return context
