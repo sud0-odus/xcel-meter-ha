@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 from typing import Protocol
 
 from .models import AgentVersion, MeterReadingDescriptor, ReadingKind, ReadingTypeInfo
-from .xmlutil import child_text, children_named, first_child, int_text, parse_xml
+from .xmlutil import (
+    child_text,
+    children_named,
+    first_child,
+    int_text,
+    local_name,
+    parse_xml,
+)
+
+LOGGER = logging.getLogger("xcel_meter.discovery")
 
 
 class XmlClient(Protocol):
@@ -128,12 +138,65 @@ def classify_reading_type(
 
 
 def discover_meter_readings(
-    client: XmlClient, meter_reading_list_href: str, count: int, agent_version: AgentVersion
+    client: XmlClient,
+    meter_reading_list_href: str,
+    count: int,
+    agent_version: AgentVersion,
 ) -> list[tuple[MeterReadingDescriptor, ReadingTypeInfo]]:
     suffix = f"?l={count}" if count > 0 else ""
-    readings = parse_meter_reading_list(client.get_xml(f"{meter_reading_list_href}{suffix}"))
+    request_path = f"{meter_reading_list_href}{suffix}"
+    xml_text = client.get_xml(request_path)
+    readings = parse_meter_reading_list(xml_text)
+
+    LOGGER.info(
+        "MeterReading discovery: href=%s advertised_count=%s parsed=%s",
+        meter_reading_list_href,
+        count,
+        len(readings),
+    )
+
+    if not readings:
+        root = parse_xml(xml_text)
+        direct_readings = children_named(root, "MeterReading")
+        first_children = (
+            [local_name(child.tag) for child in list(direct_readings[0])]
+            if direct_readings
+            else []
+        )
+        LOGGER.warning(
+            "MeterReading list diagnostics: root=%s all=%s results=%s "
+            "direct_children=%s meter_reading_children=%s first_entry_children=%s",
+            local_name(root.tag),
+            root.attrib.get("all"),
+            root.attrib.get("results"),
+            [local_name(child.tag) for child in list(root)],
+            len(direct_readings),
+            first_children,
+        )
+
     result: list[tuple[MeterReadingDescriptor, ReadingTypeInfo]] = []
     for reading in readings:
         info = parse_reading_type(client.get_xml(reading.reading_type_link))
-        result.append((replace(reading, kind=classify_reading_type(info, reading.description, agent_version)), info))
+        kind = classify_reading_type(info, reading.description, agent_version)
+
+        type_tuple = (
+            info.accumulation_behaviour,
+            info.data_qualifier,
+            info.flow_direction,
+            info.kind,
+            info.phase,
+            info.uom,
+        )
+
+        LOGGER.info(
+            "MeterReading candidate: description=%r reading=%s type=%s tuple=%s classified=%s",
+            reading.description,
+            reading.reading_link,
+            reading.reading_type_link,
+            type_tuple,
+            kind.value,
+        )
+
+        result.append((replace(reading, kind=kind), info))
+
     return result
