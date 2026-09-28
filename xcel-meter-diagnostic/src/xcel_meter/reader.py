@@ -16,7 +16,7 @@ from .models import (
     ReadingKind,
     ReadingTypeInfo,
 )
-from .xmlutil import child_text, parse_xml
+from .xmlutil import child_text, local_name, parse_xml
 
 
 BASE_CORE_KINDS = {
@@ -54,12 +54,82 @@ def _scaled_value(
     )
 
 
+def _log_reading_time_metadata(
+    root,
+    href: str,
+) -> None:
+    time_period = None
+
+    for node in root.iter():
+        if local_name(node.tag) == "timePeriod":
+            time_period = node
+            break
+
+    if time_period is not None:
+        LOGGER.info(
+            "Instantaneous reading time metadata: "
+            "href=%s timePeriod.start=%s "
+            "timePeriod.duration=%s",
+            href,
+            child_text(time_period, "start"),
+            child_text(time_period, "duration"),
+        )
+        return
+
+    timestamp_fields: list[str] = []
+
+    interesting_names = {
+        "start",
+        "duration",
+        "dateTime",
+        "createdDateTime",
+        "localTime",
+        "timeStamp",
+        "timestamp",
+    }
+
+    for node in root.iter():
+        name = local_name(node.tag)
+
+        if (
+            name in interesting_names
+            and node.text is not None
+            and node.text.strip()
+        ):
+            timestamp_fields.append(
+                f"{name}={node.text.strip()}"
+            )
+
+    if timestamp_fields:
+        LOGGER.info(
+            "Instantaneous reading time metadata: "
+            "href=%s fields=%s",
+            href,
+            ", ".join(timestamp_fields),
+        )
+    else:
+        LOGGER.info(
+            "Instantaneous reading time metadata: "
+            "href=%s NOT REPORTED",
+            href,
+        )
+
+
 def _read_single_value(
     client: XmlClient,
     href: str,
     info: ReadingTypeInfo,
+    *,
+    log_time_metadata: bool = False,
 ) -> tuple[float, int | float] | None:
     root = parse_xml(client.get_xml(href))
+
+    if log_time_metadata:
+        _log_reading_time_metadata(
+            root,
+            href,
+        )
+
     raw = child_text(root, "value")
 
     if raw is None:
@@ -148,6 +218,10 @@ def read_core_snapshot(
             client,
             descriptor.reading_link,
             info,
+            log_time_metadata=(
+                descriptor.kind
+                == ReadingKind.INSTANTANEOUS_DEMAND
+            ),
         )
 
         if value is None:

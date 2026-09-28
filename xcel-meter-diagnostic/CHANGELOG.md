@@ -1,3 +1,9 @@
+## 0.4.4b1
+
+- Add temporary real-meter instrumentation for instantaneous-reading timestamp metadata.
+- Probe IEEE 2030.5 Reading timePeriod/source timestamp fields before finalizing freshness behavior.
+- No user-facing freshness entities are added yet; this prerelease is for hardware validation.
+
 ## 0.4.3
 
 ### Added
