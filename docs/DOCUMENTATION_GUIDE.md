@@ -62,6 +62,8 @@ A diagram should show the **current implemented flow**. Future work belongs in a
 
 ## Link and wording maintenance
 
+CI runs `python tools/check_docs.py` to catch missing local Markdown targets/anchors and unclosed fenced code blocks. Run the same command locally after documentation changes.
+
 - Prefer stable project-relative links for repository documentation.
 - Link to the Xcel portal from one canonical Getting Started section rather than duplicating fragile instructions everywhere.
 - State that Xcel portal labels can change.
@@ -80,7 +82,7 @@ For a release candidate:
 [ ] Troubleshooting never recommends identity deletion as a generic fix
 [ ] Compatibility/validation evidence is current
 [ ] Upstream issue review date/statuses are current
-[ ] Local Markdown links resolve
+[ ] `python tools/check_docs.py` passes
 [ ] Mermaid blocks render on GitHub
 [ ] Screenshot redaction reviewed
 [ ] No private keys, credentials, production IPs, or account identifiers were added

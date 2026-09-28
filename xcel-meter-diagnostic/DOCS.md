@@ -1,4 +1,4 @@
-# Xcel Meter HA 0.4.5b2
+# Xcel Meter HA 0.4.5b3
 
 Xcel Meter HA reads a Launchpad-enabled Xcel/Itron meter locally over IEEE 2030.5 and publishes validated readings as one Home Assistant MQTT device.
 

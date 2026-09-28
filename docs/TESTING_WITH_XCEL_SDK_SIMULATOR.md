@@ -174,11 +174,11 @@ Repeat `probe` and `read` with the v3 container name. Using the same disposable 
 
 ## 8. Extended regression checks
 
-The 0.4.5b2 campaign also exercised these cases and they are worth repeating after changes to identity/discovery code:
+The 0.4.5b2 campaign also exercised these cases. The b3 PowerShell harness now automates identity overwrite protection and expected-LFDI mismatch; the remaining checks are still useful after changes to identity/discovery code.
 
 ### Identity overwrite protection
 
-Hash `cert.pem` and `key.pem`, run `cert init --dir /certs` again, and verify:
+The b3 automated harness performs this check. For a manual Linux run, hash `cert.pem` and `key.pem`, run `cert init --dir /certs` again, and verify:
 
 - command exits non-zero;
 - it says the existing identity must be reused;
@@ -186,7 +186,7 @@ Hash `cert.pem` and `key.pem`, run `cert init --dir /certs` again, and verify:
 
 ### Expected-LFDI mismatch
 
-Run `cert show` with a deliberately wrong `--expected-lfdi`. Expected result: `LFDI check: MISMATCH` and a non-zero exit code.
+The b3 automated harness performs this check. For a manual run, use `cert show` with a deliberately wrong `--expected-lfdi`. Expected result: `LFDI check: MISMATCH` and a non-zero exit code.
 
 ### Real paging behavior
 

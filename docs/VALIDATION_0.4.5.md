@@ -137,11 +137,22 @@ OBSERVATION:
 
 Conclusion: resource/link presence is not sufficient evidence that interval samples are available. Interval history remains out of scope until actual support/semantics are proven.
 
+## 0.4.5b3 release-hardening coverage
+
+The b3 candidate converts additional lessons from the manual simulator campaign into repeatable safeguards without changing the meter protocol model:
+
+- identity history is monotonic: once `meter_authenticated` becomes true, a later authorization failure cannot make the identity look never-proven again;
+- automated runtime tests require both HTTP `401` and `403` to remain hard failures for a previously authenticated generated identity;
+- the secure simulator harness now verifies a second identity initialization is blocked and leaves both certificate/key hashes unchanged;
+- the harness also verifies an intentionally wrong expected LFDI produces the explicit mismatch failure before meter tests;
+- CI validates local Markdown targets/anchors and fenced-code balance so documentation maintenance is a release gate rather than a manual reminder.
+
 ## Automated repository gates
 
-CI for the 0.4.5b2 line includes:
+CI for the 0.4.5b3 line includes:
 
-- Ruff/lint checks;
+- Ruff/lint checks, including the documentation checker;
+- local Markdown target/anchor and fenced-code validation;
 - root/add-on `xcel_meter` source parity;
 - package/app/runtime version parity;
 - pytest on supported Python versions;

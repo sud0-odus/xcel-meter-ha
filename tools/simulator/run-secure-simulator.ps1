@@ -38,6 +38,18 @@ function Invoke-Client {
     return [pscustomobject]@{ Code = $code; Output = @($output) }
 }
 
+function Get-IdentityHashes {
+    $python = 'import hashlib,pathlib; [print(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest(), p) for p in ("/certs/.cert.pem", "/certs/.key.pem")]'
+    $output = & docker run --rm `
+        -v "${script:CertDir}:/certs:ro" `
+        --entrypoint python `
+        $script:ClientImage -c $python 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to hash the disposable identity: $($output -join [Environment]::NewLine)"
+    }
+    return @($output | ForEach-Object { "$_" })
+}
+
 function Wait-For-Simulator {
     param([int]$Version)
 
@@ -92,7 +104,7 @@ if (Test-Path (Join-Path $ResolvedSdkRoot "launchpad\Dockerfile")) {
 }
 
 $script:HostPort = $HostPort
-$script:ClientImage = "xcel-meter-ha-sim-client:0.4.5b2"
+$script:ClientImage = "xcel-meter-ha-sim-client:0.4.5b3"
 $script:SimulatorImage = "xcel-launchpad-meter-simulator:local"
 $script:ContainerName = "xcel-meter-sdk-simulator-secure"
 $WorkRoot = Join-Path $env:TEMP ("xcel-meter-ha-simulator-" + [guid]::NewGuid().ToString("N"))
@@ -118,6 +130,33 @@ try {
     $Lfdi = $lfdiMatch.Matches[0].Groups[1].Value.ToUpperInvariant()
     Write-Host "Disposable client LFDI: $Lfdi"
 
+    Write-Host "Verifying that identity initialization cannot overwrite the generated certificate/key..."
+    $beforeHashes = Get-IdentityHashes
+    $regenerationOutput = & docker run --rm -v "${script:CertDir}:/certs" `
+        $script:ClientImage cert init --dir /certs 2>&1
+    $regenerationCode = $LASTEXITCODE
+    $regenerationOutput | ForEach-Object { Write-Host $_ }
+    if ($regenerationCode -eq 0) {
+        throw "Identity regeneration unexpectedly succeeded over an existing certificate/key pair."
+    }
+    $afterHashes = Get-IdentityHashes
+    if (($beforeHashes -join "`n") -ne ($afterHashes -join "`n")) {
+        throw "Disposable certificate/key bytes changed after a blocked regeneration attempt."
+    }
+    Write-Host "PASS: blocked regeneration left both identity files byte-for-byte unchanged."
+
+    $WrongLfdi = "0000000000000000000000000000000000000000"
+    if ($WrongLfdi -eq $Lfdi) {
+        $WrongLfdi = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+    }
+    $mismatch = Invoke-Client cert show --dir /certs --expected-lfdi $WrongLfdi
+    $mismatch.Output | ForEach-Object { Write-Host $_ }
+    $mismatchText = $mismatch.Output -join "`n"
+    if ($mismatch.Code -eq 0 -or $mismatchText -notmatch 'LFDI check: MISMATCH') {
+        throw "Expected-LFDI mismatch guard did not fail as expected."
+    }
+    Write-Host "PASS: expected-LFDI mismatch is detected before meter testing."
+
     Write-Host "Building the Xcel SDK Meter Agent Simulator from the supplied SDK checkout..."
     Invoke-Docker build -t $script:SimulatorImage -f (Join-Path $LaunchpadRoot "Dockerfile") $LaunchpadRoot
 
@@ -127,11 +166,6 @@ try {
 
         # The SDK simulator intentionally returns HTTP 403 for an unregistered LFDI.
         # Its own README notes that real agents use 401 for this condition.
-        $WrongLfdi = "0000000000000000000000000000000000000000"
-        if ($WrongLfdi -eq $Lfdi) {
-            $WrongLfdi = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-        }
-
         Write-Host "Starting simulator with the disposable LFDI intentionally NOT registered..."
         Start-Simulator -Version $version -AllowedLfdi $WrongLfdi
 
@@ -171,6 +205,7 @@ try {
 
     Write-Host ""
     Write-Host "SECURE XCEL SDK SIMULATOR RESULT: PASS"
+    Write-Host "Identity overwrite and expected-LFDI mismatch protections passed."
     Write-Host "The disposable identity was rejected before ACL registration and accepted afterward."
     Write-Host "Both requested Itron agent versions completed secure discovery/read validation."
 }

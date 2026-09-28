@@ -161,6 +161,7 @@ def test_migrated_identity_client_rejection_remains_failure(monkeypatch, tmp_pat
     with pytest.raises(MeterHttpError, match="client rejected"):
         run_once({"meter_ip": "192.0.2.10", "identity_source": "auto"})
 
+
 @pytest.mark.parametrize("status", [401, 403])
 def test_generated_never_authenticated_http_auth_rejection_is_onboarding_pending(
     monkeypatch,
@@ -207,9 +208,11 @@ def test_generated_never_authenticated_http_auth_rejection_is_onboarding_pending
         run_once({"meter_ip": "192.0.2.10", "identity_source": "auto"})
 
 
-def test_previously_authenticated_generated_identity_http_403_remains_failure(
+@pytest.mark.parametrize("status", [401, 403])
+def test_previously_authenticated_generated_identity_http_auth_remains_failure(
     monkeypatch,
     tmp_path: Path,
+    status: int,
 ) -> None:
     class DummyInfo:
         lfdi = "E" * 40
@@ -238,9 +241,9 @@ def test_previously_authenticated_generated_identity_http_403_remains_failure(
     monkeypatch.setattr("xcel_meter.addon_runtime.Ieee20305Client", DummyClient)
 
     def reject(*args, **kwargs):
-        raise MeterHttpError("HTTP 403", kind="http", status=403, path="/upt")
+        raise MeterHttpError(f"HTTP {status}", kind="http", status=status, path="/upt")
 
     monkeypatch.setattr("xcel_meter.addon_runtime.discover_core_profile", reject)
 
-    with pytest.raises(MeterHttpError, match="HTTP 403"):
+    with pytest.raises(MeterHttpError, match=f"HTTP {status}"):
         run_once({"meter_ip": "192.0.2.10", "identity_source": "auto"})

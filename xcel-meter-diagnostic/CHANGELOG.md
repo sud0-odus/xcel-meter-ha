@@ -1,3 +1,11 @@
+## 0.4.5b3
+
+- Harden the identity manifest so a client that has authenticated successfully can never be downgraded to a never-authenticated onboarding state by a later failure.
+- Cover both HTTP 401 and HTTP 403 as hard authorization failures after a generated identity has previously authenticated.
+- Expand the secure SDK simulator harness to verify blocked identity regeneration leaves certificate/key bytes unchanged and that an expected-LFDI mismatch fails explicitly.
+- Add a CI documentation gate for broken local Markdown links/anchors and unclosed fenced code blocks.
+- Keep the 0.4.5b2 meter protocol behavior unchanged while promoting this build as the release-hardening candidate.
+
 ## 0.4.5b2
 
 - Add a Docker-based secure Xcel SDK Meter Agent Simulator harness that uses the supplied private SDK checkout without vendoring it.

@@ -240,7 +240,9 @@ def write_identity_manifest(
         payload["meter_authenticated"] = True
         payload["onboarding_state"] = "active"
         payload["last_meter_authenticated_utc"] = datetime.now(UTC).isoformat()
-    elif meter_authenticated is False:
+    elif meter_authenticated is False and not previously_authenticated:
+        # This field means "has this identity ever authenticated successfully?".
+        # Once true, preserve that historical fact across later authorization failures.
         payload["meter_authenticated"] = False
 
     tmp = destination.with_suffix(".json.tmp")

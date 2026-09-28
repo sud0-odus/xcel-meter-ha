@@ -106,3 +106,32 @@ def test_read_identity_manifest_returns_persisted_status(tmp_path: Path) -> None
     assert payload["identity_origin"] == "generated"
     assert payload["lfdi"] == prep.info.lfdi
     assert payload["meter_authenticated"] is False
+
+
+def test_identity_manifest_keeps_success_history_after_later_failure(tmp_path: Path) -> None:
+    own = tmp_path / "own"
+    addons = tmp_path / "addons"
+    generated = prepare_identity(
+        "auto",
+        own_config_root=own,
+        all_addon_configs_root=addons,
+    )
+    path = write_identity_manifest(generated, own_config_root=own)
+    assert path is not None
+
+    existing = prepare_identity(
+        "auto",
+        own_config_root=own,
+        all_addon_configs_root=addons,
+    )
+    write_identity_manifest(existing, own_config_root=own, meter_authenticated=True)
+    authenticated = read_identity_manifest(own)
+    authenticated_at = authenticated["last_meter_authenticated_utc"]
+
+    # A later authorization failure must not make this identity look like it has never worked.
+    write_identity_manifest(existing, own_config_root=own, meter_authenticated=False)
+    payload = read_identity_manifest(own)
+
+    assert payload["meter_authenticated"] is True
+    assert payload["onboarding_state"] == "active"
+    assert payload["last_meter_authenticated_utc"] == authenticated_at
