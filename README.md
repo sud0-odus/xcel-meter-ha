@@ -1,4 +1,7 @@
 # Xcel Meter HA
+<p align="center">
+  <img src="xcel-meter-diagnostic/logo.png" alt="Xcel Meter HA" width="350">
+</p>
 
 Local-first Xcel Energy / Itron IEEE 2030.5 smart-meter data for Home Assistant.
 
