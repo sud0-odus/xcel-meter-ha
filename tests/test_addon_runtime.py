@@ -160,3 +160,87 @@ def test_migrated_identity_client_rejection_remains_failure(monkeypatch, tmp_pat
 
     with pytest.raises(MeterHttpError, match="client rejected"):
         run_once({"meter_ip": "192.0.2.10", "identity_source": "auto"})
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_generated_never_authenticated_http_auth_rejection_is_onboarding_pending(
+    monkeypatch,
+    tmp_path: Path,
+    status: int,
+) -> None:
+    class DummyInfo:
+        lfdi = "D" * 40
+
+    class DummyLocation:
+        source = "own"
+        cert_path = tmp_path / "cert.pem"
+        key_path = tmp_path / "key.pem"
+
+    class DummyPreparation:
+        action = "existing"
+        location = DummyLocation()
+        info = DummyInfo()
+
+    class DummyClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    monkeypatch.setattr("xcel_meter.addon_runtime.prepare_identity", lambda *a, **k: DummyPreparation())
+    monkeypatch.setattr("xcel_meter.addon_runtime.validate_identity", lambda *a, **k: DummyInfo())
+    monkeypatch.setattr("xcel_meter.addon_runtime.write_identity_manifest", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "xcel_meter.addon_runtime.read_identity_manifest",
+        lambda: {"identity_origin": "generated", "meter_authenticated": False},
+    )
+    monkeypatch.setattr("xcel_meter.addon_runtime.Ieee20305Client", DummyClient)
+
+    def reject(*args, **kwargs):
+        raise MeterHttpError(
+            f"HTTP {status}",
+            kind="http",
+            status=status,
+            path="/upt",
+        )
+
+    monkeypatch.setattr("xcel_meter.addon_runtime.discover_core_profile", reject)
+
+    with pytest.raises(OnboardingPendingError, match="SDK simulator returns HTTP 403"):
+        run_once({"meter_ip": "192.0.2.10", "identity_source": "auto"})
+
+
+def test_previously_authenticated_generated_identity_http_403_remains_failure(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    class DummyInfo:
+        lfdi = "E" * 40
+
+    class DummyLocation:
+        source = "own"
+        cert_path = tmp_path / "cert.pem"
+        key_path = tmp_path / "key.pem"
+
+    class DummyPreparation:
+        action = "existing"
+        location = DummyLocation()
+        info = DummyInfo()
+
+    class DummyClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    monkeypatch.setattr("xcel_meter.addon_runtime.prepare_identity", lambda *a, **k: DummyPreparation())
+    monkeypatch.setattr("xcel_meter.addon_runtime.validate_identity", lambda *a, **k: DummyInfo())
+    monkeypatch.setattr("xcel_meter.addon_runtime.write_identity_manifest", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "xcel_meter.addon_runtime.read_identity_manifest",
+        lambda: {"identity_origin": "generated", "meter_authenticated": True},
+    )
+    monkeypatch.setattr("xcel_meter.addon_runtime.Ieee20305Client", DummyClient)
+
+    def reject(*args, **kwargs):
+        raise MeterHttpError("HTTP 403", kind="http", status=403, path="/upt")
+
+    monkeypatch.setattr("xcel_meter.addon_runtime.discover_core_profile", reject)
+
+    with pytest.raises(MeterHttpError, match="HTTP 403"):
+        run_once({"meter_ip": "192.0.2.10", "identity_source": "auto"})

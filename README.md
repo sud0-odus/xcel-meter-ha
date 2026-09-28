@@ -4,9 +4,9 @@ A maintained, local-first Xcel Energy / Itron IEEE 2030.5 smart-meter bridge for
 
 The project is validated against a production Xcel/Itron meter and uses the Xcel Energy Launchpad client SDK as the protocol/reference implementation for certificate identity, Itron ReadingType semantics, and meter behavior.
 
-## Status: 0.4.5b1 native identity + SDK alignment candidate
+## Status: 0.4.5b2 native onboarding + secure SDK simulator candidate
 
-0.4.4 completed the production-meter freshness and MQTT outage/recovery work. 0.4.5b1 is the first larger native-onboarding candidate.
+0.4.4 completed the production-meter freshness and MQTT outage/recovery work. 0.4.5b1 proved safe legacy identity migration and standalone production-meter operation. 0.4.5b2 adds a secure Xcel SDK simulator harness and aligns new-user provisioning behavior with the simulator/real-agent authentication responses documented by the SDK.
 
 Current capabilities include:
 
@@ -44,7 +44,7 @@ A non-secret `/config/certs/identity.json` records the LFDI, certificate expirat
 
 The Home Assistant app remains under `xcel-meter-diagnostic/` for upgrade compatibility; its displayed name is now **Xcel Meter HA**.
 
-Recommended 0.4.5b1 options for an existing installation:
+Recommended 0.4.5b2 options for an existing installation:
 
 ```yaml
 meter_ip: 192.168.1.122
@@ -61,7 +61,7 @@ mqtt_enabled: true
 energy_export_enabled: false
 ```
 
-For an existing user, the first 0.4.5b1 hardware validation should confirm a log similar to:
+The 0.4.5b1 production migration was validated on real hardware. A migrated installation should show a log similar to:
 
 ```text
 Legacy identity safely migrated into app-owned storage with unchanged LFDI: ...
@@ -79,11 +79,18 @@ Once that succeeds across a restart, the old add-on is no longer the active iden
 
 ## New-install onboarding
 
-If no existing identity is found, 0.4.5b1 can generate an app-owned identity once. A `meter_ip` is not required just to create/persist the identity: the log prints the LFDI first so the user can register it in Xcel Energy Launchpad, then reports onboarding as pending until the meter address is configured.
+If no existing identity is found, 0.4.5b2 can generate an app-owned identity once. A `meter_ip` is not required just to create/persist the identity: the log prints the LFDI first so the user can register it in Xcel Energy Launchpad, then reports onboarding as pending until the meter address is configured.
 
-Once `meter_ip` is configured, the app keeps that same identity and retries normally while provisioning completes. Missing meter configuration is treated as an onboarding state rather than a physical-meter health failure. An explicit TLS client-certificate rejection is also treated as possible provisioning-pending only for a newly generated identity that has never authenticated successfully; the identity is never replaced automatically.
+Once `meter_ip` is configured, the app keeps that same identity and retries normally while provisioning completes. Missing meter configuration is treated as an onboarding state rather than a physical-meter health failure. An explicit TLS client-certificate rejection, HTTP 401, or HTTP 403 is treated as possible provisioning-pending only for a newly generated identity that has never authenticated successfully; the identity is never replaced automatically. The Xcel SDK simulator documents HTTP 403 for an unregistered LFDI while its real-agent notes describe HTTP 401.
 
 There is intentionally no generic **Regenerate** workflow. Replacing a provisioned identity should be a deliberate, warned operation because it changes the LFDI.
+
+
+## Secure SDK simulator validation
+
+0.4.5b2 includes `tools/simulator/run-secure-simulator.ps1`. It builds the supplied Xcel meter-simulator branch locally, generates a disposable client identity, proves the unregistered LFDI is rejected, then allowlists the exact LFDI and validates secure v1 and v3 discovery/read behavior over TLS 1.2 / `ECDHE-ECDSA-AES128-CCM8`.
+
+The harness does **not** use the upstream `LinuxSwagger` compose mode because the SDK documentation says that mode disables certificate security. It never touches the Home Assistant production identity and does not vendor the private Xcel SDK source into this repository. See [`tools/simulator/README.md`](tools/simulator/README.md).
 
 ## Real-meter validation already completed
 
@@ -136,7 +143,7 @@ CI tests Python 3.12, 3.13, and 3.14 and also verifies that the root package and
 
 ## Project direction after 0.4.5
 
-- production validation of native migration/generation
+- secure simulator validation of native generation and provisioning-pending behavior
 - meter replacement/counter-reset safeguards
 - optional mDNS discovery after confirming Xcel's production contract
 - sanitized firmware fixtures and simulator-backed regression coverage

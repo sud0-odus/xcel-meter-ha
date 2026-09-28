@@ -1,3 +1,12 @@
+## 0.4.5b2
+
+- Add a Docker-based secure Xcel SDK Meter Agent Simulator harness that uses the supplied private SDK checkout without vendoring it.
+- Generate a disposable IEEE 2030.5 identity for simulator validation; never touch the production Home Assistant identity.
+- Validate the SDK simulator's documented pre-registration HTTP 403 behavior, then allowlist the generated LFDI and test secure v1/v3 discovery and reads.
+- Treat HTTP 401/403 as possible provisioning-pending only for a newly generated identity that has never authenticated successfully, matching the SDK simulator/real-agent behavior distinction.
+- Preserve hard failures for migrated or previously authenticated identities so real regressions are not hidden as onboarding.
+- Record successful real-hardware 0.4.5b1 migration, restart persistence, legacy add-on removal, TLS authentication, and MQTT publication as the production baseline for 0.4.5.
+
 ## 0.4.5b1
 
 - Add app-owned IEEE 2030.5 identity lifecycle: reuse, safe legacy migration, or one-time generation.

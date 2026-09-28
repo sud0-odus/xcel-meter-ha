@@ -29,6 +29,21 @@ jobs:
       - name: Lint
         run: ruff check src tests xcel-meter-diagnostic/src
 
+      - name: Parse PowerShell simulator tooling
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "tools/simulator/run-secure-simulator.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+
       - name: Verify root/add-on source parity
         run: diff -ru src/xcel_meter xcel-meter-diagnostic/src/xcel_meter
 

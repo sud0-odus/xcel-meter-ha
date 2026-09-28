@@ -94,7 +94,7 @@ The SDK client accepts the meter's self-signed server certificate rather than ap
 
 The SDK documents discovery of `upt._sub._smartenergy._tcp.local.` and the simulator advertises Smart Energy TXT records. The current production setup already has a stable meter address. Automatic mDNS discovery is intentionally deferred until we confirm that Xcel expects those records to be a production contract across currently deployed meter generations.
 
-0.4.5b1 does **not** require `meter_ip` merely to generate/migrate and persist the client identity or present its LFDI. A manual/fixed `meter_ip` is required only when local meter validation/polling begins; until then the runtime reports an onboarding-pending state instead of a physical-meter failure.
+0.4.5b2 does **not** require `meter_ip` merely to generate/migrate and persist the client identity or present its LFDI. A manual/fixed `meter_ip` is required only when local meter validation/polling begins; until then the runtime reports an onboarding-pending state instead of a physical-meter failure.
 
 ### Cloud SDK is not inserted into the data path
 
@@ -117,7 +117,7 @@ The SDK answered the basic certificate profile, LFDI derivation, supported Readi
 7. **Version metadata:** Should `softwareVersion` be considered optional in production, with ReadingType metadata treated as the compatibility authority when absent?
 8. **SDK baseline:** Which branch/tag/release should third-party developers treat as the currently supported reference, especially for the Meter Agent Simulator?
 
-## 0.4.5b1 validation targets
+## 0.4.5b2 validation targets
 
 Before promoting 0.4.5 to a final release:
 
@@ -127,3 +127,16 @@ Before promoting 0.4.5 to a final release:
 - only after that, remove/disable the legacy add-on and prove operation continues;
 - separately exercise a newly generated identity through Launchpad enrollment when convenient, without risking the currently provisioned production identity;
 - retain all 0.4.4 meter/MQTT outage and freshness behavior.
+
+## 0.4.5b2 simulator/authentication findings
+
+The supplied Meter Agent Simulator documents an intentional difference from a real Itron agent when an LFDI is not registered:
+
+- simulator: HTTP **403 Forbidden** because ASP.NET certificate authentication cannot re-challenge after TLS;
+- real Itron agent: SDK notes describe HTTP **401 Unauthorized** for the failed-registration condition.
+
+For a **newly generated identity that has never authenticated successfully**, `xcel-meter-ha` therefore treats TLS client-certificate rejection, HTTP 401, and HTTP 403 as possible provisioning-pending signals. This special classification is deliberately not used for migrated identities or identities that have authenticated before.
+
+The meter-simulator feature branch's development compose file runs `LinuxSwagger`, which its documentation says disables certificate security and is not IEEE 2030.5 compatible. The 0.4.5b2 test harness instead launches the supplied simulator in `Production` over HTTPS and injects the disposable LFDI through .NET configuration environment variables. The SDK source remains external/private and is not copied into this repository.
+
+The harness validates both the v1 and v3 simulator modes because Xcel's SDK materials identify those as the deployed Itron agent families of interest.

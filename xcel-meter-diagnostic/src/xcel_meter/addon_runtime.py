@@ -220,16 +220,23 @@ def run_once(
         )
     except MeterHttpError as exc:
         manifest = read_identity_manifest()
-        if (
+        unprovisioned_auth_response = (
             exc.kind == "client_auth"
+            or (exc.kind == "http" and exc.status in {401, 403})
+        )
+        if (
+            unprovisioned_auth_response
             and manifest.get("identity_origin") == "generated"
             and not bool(manifest.get("meter_authenticated", False))
         ):
             raise OnboardingPendingError(
-                "The meter rejected this newly generated client identity during TLS. "
-                "Because this LFDI has never authenticated successfully, Launchpad registration/"
-                "provisioning may still be pending. Keep the same identity and retry; do not "
-                "regenerate it. If provisioning should be complete, verify the registered LFDI."
+                "The meter rejected this newly generated client identity before it has ever "
+                "authenticated successfully. Launchpad registration/provisioning may still be "
+                "pending. Keep the same identity and retry; do not regenerate it. If provisioning "
+                "should be complete, verify the registered LFDI. The Xcel SDK simulator returns "
+                "HTTP 403 for an unregistered LFDI while its real-agent notes describe HTTP 401; "
+                "both are treated as the same onboarding state only for a new, never-authenticated "
+                "identity."
             ) from exc
         raise
 

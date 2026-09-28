@@ -1,10 +1,10 @@
-# Xcel Meter HA 0.4.5b1
+# Xcel Meter HA 0.4.5b2
 
 This Home Assistant app reads a Launchpad-enabled Xcel/Itron meter locally over IEEE 2030.5 and publishes the validated readings as one Home Assistant MQTT device.
 
 ## Existing-user upgrade
 
-Keep the legacy Xcel iTron MQTT add-on installed but stopped for the first 0.4.5b1 migration test.
+Keep the legacy Xcel iTron MQTT add-on installed but stopped for the first 0.4.5b2 migration test.
 
 With the defaults below, `identity_source: auto` first looks for this app's own identity. If none exists, it finds the legacy certificate/key, validates the IEEE 2030.5 profile, copies the pair into this app's writable `/config/certs` storage, verifies that the LFDI did not change, and then connects using the app-owned copy.
 
@@ -71,4 +71,4 @@ The meter and Home Assistant/MQTT failure domains remain separate:
 
 ## SDK alignment
 
-0.4.5b1 aligns certificate validation, ReadingType definitions, list paging, and the IEEE 2030.5 Accept header with the supplied Xcel Launchpad client SDK. See the repository document `docs/SDK_ALIGNMENT_0.4.5.md` for intentional differences and open questions.
+0.4.5b2 aligns certificate validation, ReadingType definitions, list paging, and the IEEE 2030.5 Accept header with the supplied Xcel Launchpad client SDK. See the repository document `docs/SDK_ALIGNMENT_0.4.5.md` for intentional differences and open questions.
