@@ -16,7 +16,7 @@ from .freshness import (
 from .http import Ieee20305Client, MeterHttpError
 from .identity import normalize_lfdi
 from .models import MeterSnapshot
-from .mqtt_runtime import MqttPublisher
+from .mqtt_runtime import MqttPublisher, MqttUnavailableError
 from .reader import MeterProfile, discover_core_profile, read_core_snapshot
 
 LOGGER = logging.getLogger("xcel_meter.addon")
@@ -335,7 +335,7 @@ def main() -> int:
     poll_interval = int(options.get("poll_interval", 60))
     poll_interval = max(poll_interval, 15)
 
-    LOGGER.info("Xcel Meter HA Diagnostic v0.4.4b2 starting")
+    LOGGER.info("Xcel Meter HA Diagnostic v0.4.4b3 starting")
     LOGGER.info(
         "This build never modifies certificate files. "
         "MQTT publishing is controlled by mqtt_enabled."
@@ -365,7 +365,7 @@ def main() -> int:
                 profile,
             )
         except Exception as exc:  # noqa: BLE001 - top-level service diagnostics
-            LOGGER.error("RESULT: FAIL - %s", exc)
+            LOGGER.error("Meter poll failed; retrying on the next poll: %s", exc)
 
             if profile is not None:
                 if _should_invalidate_meter_profile(exc):
@@ -414,10 +414,17 @@ def main() -> int:
                     )
 
                 except Exception as exc:  # noqa: BLE001 - service boundary
-                    LOGGER.error(
-                        "MQTT publishing: FAIL - %s",
-                        exc,
-                    )
+                    if isinstance(exc, MqttUnavailableError):
+                        LOGGER.warning(
+                            "MQTT unavailable; meter polling will continue "
+                            "and MQTT will retry on the next poll: %s",
+                            exc,
+                        )
+                    else:
+                        LOGGER.error(
+                            "MQTT publishing failed unexpectedly: %s",
+                            exc,
+                        )
 
                     if mqtt_publisher is not None:
                         try:

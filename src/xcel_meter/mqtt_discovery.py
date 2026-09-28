@@ -9,7 +9,7 @@ from .models import MeterSnapshot
 
 
 APP_NAME = "xcel-meter-ha"
-APP_VERSION = "0.4.4b2"
+APP_VERSION = "0.4.4b3"
 SUPPORT_URL = "https://github.com/sud0-odus/xcel-meter-ha"
 
 

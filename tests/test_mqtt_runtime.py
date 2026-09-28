@@ -1,3 +1,5 @@
+from urllib.error import HTTPError
+
 import json
 
 import pytest
@@ -95,3 +97,67 @@ def test_load_supervisor_mqtt_settings_requires_host(
         match="No Home Assistant MQTT service",
     ):
         mqtt_runtime.load_supervisor_mqtt_settings()
+
+
+def test_supervisor_http_error_is_temporary_mqtt_unavailable(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "SUPERVISOR_TOKEN",
+        "test-token",
+    )
+
+    def fail_urlopen(request, timeout):
+        raise HTTPError(
+            request.full_url,
+            400,
+            "Bad Request",
+            hdrs=None,
+            fp=None,
+        )
+
+    monkeypatch.setattr(
+        mqtt_runtime,
+        "urlopen",
+        fail_urlopen,
+    )
+
+    with pytest.raises(
+        mqtt_runtime.MqttUnavailableError,
+        match="MQTT service is not ready",
+    ):
+        mqtt_runtime.load_supervisor_mqtt_settings()
+
+def test_supervisor_auth_http_error_is_not_temporary(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "SUPERVISOR_TOKEN",
+        "test-token",
+    )
+
+    def fail_urlopen(request, timeout):
+        raise HTTPError(
+            request.full_url,
+            401,
+            "Unauthorized",
+            hdrs=None,
+            fp=None,
+        )
+
+    monkeypatch.setattr(
+        mqtt_runtime,
+        "urlopen",
+        fail_urlopen,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="HTTP 401 Unauthorized",
+    ) as exc_info:
+        mqtt_runtime.load_supervisor_mqtt_settings()
+
+    assert not isinstance(
+        exc_info.value,
+        mqtt_runtime.MqttUnavailableError,
+    )

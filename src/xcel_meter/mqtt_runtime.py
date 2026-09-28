@@ -23,6 +23,10 @@ from .mqtt_discovery import (
 LOGGER = logging.getLogger("xcel_meter.mqtt")
 
 
+class MqttUnavailableError(RuntimeError):
+    """Expected temporary loss of the MQTT service or broker."""
+
+
 @dataclass(frozen=True)
 class SupervisorMqttSettings:
     host: str
@@ -55,9 +59,19 @@ def load_supervisor_mqtt_settings() -> SupervisorMqttSettings:
             payload = json.loads(
                 response.read().decode("utf-8")
             )
-    except (HTTPError, URLError, TimeoutError) as exc:
+    except HTTPError as exc:
+        if exc.code in {400, 408, 429} or exc.code >= 500:
+            raise MqttUnavailableError(
+                f"Home Assistant MQTT service is not ready: {exc}"
+            ) from exc
+
         raise RuntimeError(
-            f"Unable to query Home Assistant MQTT service: {exc}"
+            "Home Assistant MQTT service request failed: "
+            f"HTTP {exc.code} {exc.reason}"
+        ) from exc
+    except (URLError, TimeoutError) as exc:
+        raise MqttUnavailableError(
+            f"Home Assistant MQTT service is not ready: {exc}"
         ) from exc
 
     if isinstance(payload, dict) and "data" in payload:
@@ -75,7 +89,7 @@ def load_supervisor_mqtt_settings() -> SupervisorMqttSettings:
     password = str(data.get("password") or "")
 
     if not host:
-        raise RuntimeError(
+        raise MqttUnavailableError(
             "No Home Assistant MQTT service is available"
         )
 
@@ -195,7 +209,8 @@ class MqttPublisher:
 
         if reason_code != 0:
             LOGGER.warning(
-                "MQTT connection lost: %s",
+                "MQTT connection lost; Home Assistant entities may be "
+                "unavailable until the broker returns: %s",
                 reason_code,
             )
 
@@ -207,17 +222,23 @@ class MqttPublisher:
             self.settings.ssl_enabled,
         )
 
-        self._client.connect(
-            self.settings.host,
-            self.settings.port,
-            keepalive=60,
-        )
+        try:
+            self._client.connect(
+                self.settings.host,
+                self.settings.port,
+                keepalive=60,
+            )
+        except OSError as exc:
+            raise MqttUnavailableError(
+                f"Unable to reach MQTT broker: {exc}"
+            ) from exc
+
         self._client.loop_start()
 
         if not self._connected.wait(timeout=10):
             self._client.loop_stop()
-            raise RuntimeError(
-                "Timed out waiting for MQTT broker connection"
+            raise MqttUnavailableError(
+                "MQTT broker connection timed out"
             )
 
     def _publish(
@@ -234,11 +255,16 @@ class MqttPublisher:
             retain=retain,
         )
 
-        info.wait_for_publish(timeout=10)
+        try:
+            info.wait_for_publish(timeout=10)
+        except RuntimeError as exc:
+            raise MqttUnavailableError(
+                f"MQTT connection unavailable: {exc}"
+            ) from exc
 
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
-            raise RuntimeError(
-                f"MQTT publish failed for {topic}: rc={info.rc}"
+            raise MqttUnavailableError(
+                f"MQTT publish unavailable for {topic}: rc={info.rc}"
             )
 
     def publish_discovery(self) -> None:

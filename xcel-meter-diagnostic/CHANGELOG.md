@@ -1,3 +1,9 @@
+## 0.4.4b3
+
+- Treat temporary MQTT broker/Supervisor outages as warnings while meter polling continues.
+- Clarify meter-poll failures and MQTT disconnect messages, with automatic retry on the next poll.
+- Keep Supervisor authentication/configuration HTTP errors visible as errors instead of masking them as temporary MQTT outages.
+
 ## 0.4.4b2
 
 - Preserve meter-reported Reading `timePeriod.start` and `duration` as first-class sample metadata.
