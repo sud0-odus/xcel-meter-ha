@@ -27,7 +27,26 @@ jobs:
         run: ruff --version
 
       - name: Lint
-        run: ruff check src tests
+        run: ruff check src tests xcel-meter-diagnostic/src
+
+      - name: Verify root/add-on source parity
+        run: diff -ru src/xcel_meter xcel-meter-diagnostic/src/xcel_meter
+
+      - name: Verify package/app version parity
+        run: |
+          python - <<'PY'
+          import pathlib
+          import re
+          root = pathlib.Path("pyproject.toml").read_text()
+          addon = pathlib.Path("xcel-meter-diagnostic/pyproject.toml").read_text()
+          config = pathlib.Path("xcel-meter-diagnostic/config.yaml").read_text()
+          runtime = pathlib.Path("src/xcel_meter/version.py").read_text()
+          rv = re.search(r'^version = "([^"]+)"', root, re.M).group(1)
+          av = re.search(r'^version = "([^"]+)"', addon, re.M).group(1)
+          cv = re.search(r'^version: "([^"]+)"', config, re.M).group(1)
+          pv = re.search(r'^APP_VERSION = "([^"]+)"', runtime, re.M).group(1)
+          assert rv == av == cv == pv, (rv, av, cv, pv)
+          PY
 
   test:
     runs-on: ubuntu-24.04

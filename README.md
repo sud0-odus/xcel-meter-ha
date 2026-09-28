@@ -1,75 +1,120 @@
 # xcel-meter-ha
 
-A maintained Xcel Energy / Itron Gen 5 Riva smart-meter client and Home Assistant bridge.
+A maintained, local-first Xcel Energy / Itron IEEE 2030.5 smart-meter bridge for Home Assistant.
 
-The project is being built and validated **inside Home Assistant first**. The official Xcel Energy
-Launchpad client SDK is used as the behavior reference for IEEE 2030.5 identity, Itron agent
-versions, and reading-type semantics.
+The project is validated against a production Xcel/Itron meter and uses the Xcel Energy Launchpad client SDK as the protocol/reference implementation for certificate identity, Itron ReadingType semantics, and meter behavior.
 
-## Status: v0.3 Home Assistant diagnostic milestone
+## Status: 0.4.5b1 native identity + SDK alignment candidate
 
-Implemented:
+0.4.4 completed the production-meter freshness and MQTT outage/recovery work. 0.4.5b1 is the first larger native-onboarding candidate.
 
-- IEEE 2030.5 EC P-256 client identity generation and inspection
-- certificate-derived LFDI
-- expected/Launchpad LFDI mismatch detection
-- TLS/HTTP diagnostics
-- DeviceInformation + Itron agent version discovery
-- active electricity UsagePoint discovery
-- MeterReading/ReadingType discovery
-- Itron v2/v3 core reading classification
-- instantaneous demand, delivered energy and received energy normalization
-- Home Assistant diagnostic app packaging
-- read-only reuse of an existing `xcel-itron-mqtt` identity for migration testing
-- automated tests and Python 3.12/3.13/3.14 CI
+Current capabilities include:
 
-The v0.3 diagnostic app intentionally **does not publish MQTT** and **does not modify certificate
-files**. Its job is to prove the new client against real Home Assistant installations and real
-Xcel/Itron meters before it becomes a replacement bridge.
+- IEEE 2030.5 P-256 client identity generation and inspection
+- certificate-derived LFDI and Launchpad LFDI mismatch protection
+- safe one-time migration of the existing legacy `xcel-itron-mqtt` identity into this app's own persistent storage
+- one-time generation of a durable app-owned identity when no identity exists
+- TLS 1.2 / `ECDHE-ECDSA-AES128-CCM8` meter connectivity
+- dynamic active electricity UsagePoint and MeterReading discovery
+- SDK-aligned Itron v1/v2-compatible and v3 ReadingType classification
+- SDK-aligned paging when a meter returns fewer list items than requested
+- Instantaneous Demand and cumulative Energy Delivered; Energy Received is optional
+- source timestamp freshness protection without fabricating `0 W` on stale/lost data
+- cached meter profile with conservative invalidation
+- Home Assistant MQTT device discovery, state, availability, diagnostics, and stable Meter Health
+- MQTT outage isolation: broker failure does not redefine meter health
 
-## Important: preserve your identity
+See [`docs/SDK_ALIGNMENT_0.4.5.md`](docs/SDK_ALIGNMENT_0.4.5.md) for the source-by-source alignment review and remaining Xcel/Itron questions.
 
-Deleting the certificate directory creates a new certificate and therefore a new LFDI. Xcel must
-provision that new LFDI before the meter accepts it. Never delete/regenerate certs as a generic
-troubleshooting step.
+## Identity safety is the first rule
 
-The project explicitly detects this condition:
+A Launchpad client certificate is durable identity. A new certificate creates a new LFDI and requires utility provisioning.
 
-```text
-Expected/Launchpad LFDI: D80C3...
-Certificate-derived LFDI: 65C05...
-ERROR: identity mismatch; do not connect/retry.
+`identity_source: auto` now follows this order:
+
+1. Reuse an existing app-owned identity.
+2. If configured, migrate a valid legacy identity into app-owned `/config/certs` storage and verify the LFDI is unchanged.
+3. If no identity exists and generation is enabled, generate one identity once and display its LFDI for Launchpad registration.
+
+The app refuses to overwrite an incomplete/conflicting app-owned identity and never regenerates identity because of meter, Wi-Fi, MQTT, Home Assistant, or provisioning failures.
+
+A non-secret `/config/certs/identity.json` records the LFDI, certificate expiration, origin, and last successful meter authentication. The private key is never written to that status file or logs.
+
+## Home Assistant app
+
+The Home Assistant app remains under `xcel-meter-diagnostic/` for upgrade compatibility; its displayed name is now **Xcel Meter HA**.
+
+Recommended 0.4.5b1 options for an existing installation:
+
+```yaml
+meter_ip: 192.168.1.122
+meter_port: 8081
+expected_lfdi: YOUR_EXISTING_LAUNCHPAD_LFDI
+identity_source: auto
+migrate_legacy_identity: true
+generate_identity_if_missing: true
+legacy_addon_slug: ""
+timeout: 8
+poll_interval: 60
+log_level: INFO
+mqtt_enabled: true
+energy_export_enabled: false
 ```
 
-## Home Assistant diagnostic app
-
-The app is under `xcel-meter-diagnostic/`.
-
-For migration validation it can read an existing legacy Xcel iTron MQTT app identity **read-only**.
-With `identity_source: auto`, it checks its own public config first and then scans legacy app config
-folders matching `*_xcel-itron-mqtt`.
-
-A successful run reports:
+For an existing user, the first 0.4.5b1 hardware validation should confirm a log similar to:
 
 ```text
-Identity source: legacy
+Legacy identity safely migrated into app-owned storage with unchanged LFDI: ...
+Identity source: own
 Certificate-derived LFDI: ...
+Expected/Launchpad LFDI: ...
 LFDI validation: MATCH
 TLS/IEEE 2030.5 connection: PASS
-Itron agent version: ...
-Meter software version: ...
-Instantaneous power: ... W
-Energy delivered: ... Wh
-Energy received: ... Wh
+Connection health: HEALTHY
 RESULT: PASS
+MQTT state published: ...
 ```
 
-See `xcel-meter-diagnostic/DOCS.md` and `docs/MILESTONE3.md`.
+Once that succeeds across a restart, the old add-on is no longer the active identity store and can be removed after the user confirms the new app continues to authenticate.
 
-## Development install
+## New-install onboarding
 
-Development and CI can still run outside Home Assistant, but desktop Python is **not required for
-end users**.
+If no existing identity is found, 0.4.5b1 can generate an app-owned identity once. A `meter_ip` is not required just to create/persist the identity: the log prints the LFDI first so the user can register it in Xcel Energy Launchpad, then reports onboarding as pending until the meter address is configured.
+
+Once `meter_ip` is configured, the app keeps that same identity and retries normally while provisioning completes. Missing meter configuration is treated as an onboarding state rather than a physical-meter health failure. An explicit TLS client-certificate rejection is also treated as possible provisioning-pending only for a newly generated identity that has never authenticated successfully; the identity is never replaced automatically.
+
+There is intentionally no generic **Regenerate** workflow. Replacing a provisioned identity should be a deliberate, warned operation because it changes the LFDI.
+
+## Real-meter validation already completed
+
+- mutual TLS against a production Xcel/Itron meter
+- certificate/LFDI validation
+- active electricity UsagePoint discovery
+- 22 MeterReading resources observed
+- Instantaneous Demand
+- Current Summation Delivered
+- Current Summation Received when export monitoring is enabled
+- one-second source metadata observed on the production meter
+- stale sample rejection while keeping timestamp-less meters compatible
+- meter/Wi-Fi outage detection and automatic recovery
+- cached profile retention across transient transport failure
+- Home Assistant/app restart behavior without false Meter Health problems
+- Mosquitto outage: HA entities unavailable while meter polling remains HEALTHY/PASS
+- Mosquitto recovery without restarting Xcel Meter HA
+
+## SDK alignment highlights
+
+The 0.4.5 pass incorporates the useful behavior already provided by the official client SDK rather than rebuilding it indirectly:
+
+- official certificate/LFDI profile
+- full documented Itron ReadingType signature catalog used for discovery
+- v1/v2-compatible versus v3 reading providers
+- list paging using returned `results`
+- IEEE media type `application/sep+xml;level=-S1`
+
+Intentional production-meter-driven differences are documented in `docs/SDK_ALIGNMENT_0.4.5.md`.
+
+## Development
 
 ```bash
 python3 -m venv .venv
@@ -78,83 +123,23 @@ pip install -e '.[dev]'
 pytest -q
 ```
 
-## Roadmap
-
-1. Identity + TLS diagnostics — complete
-2. Agent/UsagePoint discovery + core readings — complete in library
-3. Home Assistant-native diagnostic validation — current milestone
-4. MQTT publisher + modern Home Assistant device discovery
-5. Safe identity migration into this app's own `addon_config` and removal of broad migration access
-6. interval/TOU readings, diagnostics entities, certificate lifecycle alerts
-7. simulator-backed regression matrix and public release tooling
+CI tests Python 3.12, 3.13, and 3.14 and also verifies that the root package and Home Assistant app package contain identical `xcel_meter` source trees.
 
 ## Security
 
-- Never commit private keys or HA backups.
-- Never log private-key material.
-- Persist the client identity so the Launchpad-registered LFDI remains stable.
-- Rotate before expiry and register/provision the replacement identity before switching.
-- `all_addon_configs` is used read-only only in the v0.3 migration/diagnostic build. The stable app
-  is intended to use only its own `addon_config` after migration.
+- Never commit or log the private key.
+- Never delete/regenerate identity as a generic troubleshooting step.
+- Persist identity before registering its LFDI with Launchpad.
+- Validate migrated identity before removing the legacy add-on.
+- Treat certificate renewal as a lifecycle event requiring a new LFDI unless Xcel documents another mechanism.
+- Keep the meter interaction read-only.
 
-## Real-meter validation
+## Project direction after 0.4.5
 
-`xcel-meter-ha` is being validated against a real Xcel Energy / Itron
-meter, not only simulators and fixtures.
-
-### Current validation status
-
-- ✅ Mutual TLS using the provisioned IEEE 2030.5 client certificate
-- ✅ Certificate-derived LFDI validation
-- ✅ Active electricity UsagePoint discovery
-- ✅ 22 MeterReading resources discovered
-- ✅ Instantaneous Demand read from real hardware
-- ✅ Current Summation Delivered read from real hardware
-- ✅ Current Summation Received read from real hardware
-- 🧪 Interval, TOU, demand, VAh, VARh, and power-factor resources
-  discovered and being evaluated for future Home Assistant entities
-
-```mermaid
-flowchart TD
-    M["Xcel / Itron Meter<br/>22 discovered MeterReadings"]
-
-    M --> CORE["✅ Real-meter validated"]
-    CORE --> P["Instantaneous Demand<br/>Current grid power"]
-    CORE --> D["Current Summation Delivered<br/>Cumulative grid import"]
-    CORE --> R["Current Summation Received<br/>Cumulative grid export"]
-
-    M --> ENERGY["🧪 Energy detail"]
-    ENERGY --> TOU["TOU WH<br/>Delivered / Received"]
-    ENERGY --> INT["Interval WH<br/>Delivered / Received / Net"]
-
-    M --> DEMAND["🧪 Demand"]
-    DEMAND --> MAXD["Max Demand Delivered"]
-    DEMAND --> MAXR["Max Demand Received"]
-
-    M --> QUALITY["🧪 Power quality"]
-    QUALITY --> PF["Power Factor<br/>Overall + Phase A/B/C"]
-    QUALITY --> VAH["VAh<br/>Delivered / Received"]
-    QUALITY --> VARH["VARh<br/>Delivered / Received"]
-```
-
-Example values in project documentation are illustrative unless explicitly
-identified as test-fixture data.
-
-See [Real Itron Meter Reading Discovery](docs/discovered-meter-readings.md)
-for the detailed technical and user-friendly reading catalog.
-
-### Data trust model
-
-The project prefers data in this order:
-
-1. **Meter-reported facts**
-2. **Utility-provided facts**
-3. **Locally derived values**
-
-Calculated values should be clearly identified as estimates rather than
-presented as if they came directly from the meter or utility.
-
-## Development research
-
-- [Real Itron Meter Reading Discovery](docs/discovered-meter-readings.md)
-- [Upstream Issue Review](docs/upstream-issue-review.md)
+- production validation of native migration/generation
+- meter replacement/counter-reset safeguards
+- optional mDNS discovery after confirming Xcel's production contract
+- sanitized firmware fixtures and simulator-backed regression coverage
+- optional advanced diagnostics
+- interval history only after its semantics and support are proven
+- tariffs/rates as a later layer, separate from the transport core

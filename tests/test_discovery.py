@@ -54,3 +54,10 @@ def test_classify_v3_and_v2_core_types():
     assert classify_reading_type(summation, "Current Summation Delivered", AgentVersion.V3) == ReadingKind.CURRENT_SUMMATION_DELIVERED
     assert classify_reading_type(summation, "TOU Wh Delivered", AgentVersion.V3) == ReadingKind.TOU_WH_DELIVERED
     assert classify_reading_type(received_v2, "Current Summation Received", AgentVersion.V2) == ReadingKind.CURRENT_SUMMATION_RECEIVED
+
+
+def test_agent_version_1_uses_shared_v1_v2_family():
+    xml = """<DeviceInformation><lFDI>ABCDEF</lFDI><softwareVersion>1.9.0</softwareVersion></DeviceInformation>"""
+    version, software, _ = determine_agent_version(FakeClient({"/sdev/sdi": xml}))
+    assert version == AgentVersion.V1_V2
+    assert software == "1.9.0"

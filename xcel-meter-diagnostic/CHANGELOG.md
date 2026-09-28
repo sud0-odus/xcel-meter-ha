@@ -1,3 +1,19 @@
+## 0.4.5b1
+
+- Add app-owned IEEE 2030.5 identity lifecycle: reuse, safe legacy migration, or one-time generation.
+- Verify migrated identity retains the exact same certificate-derived LFDI before use.
+- Refuse to overwrite partial/conflicting app-owned identity files.
+- Persist non-secret identity status in `/config/certs/identity.json`.
+- Allow identity creation/migration and LFDI presentation before `meter_ip` is configured; treat that state as onboarding pending rather than a meter-health failure.
+- Classify an explicit TLS client-certificate rejection for a newly generated, never-authenticated identity as possible Launchpad provisioning-pending; keep migrated/previously active identity failures visible as real errors.
+- Align certificate validation with the Xcel SDK profile, including self-signed P-256/SHA-256, critical IEEE policy, and critical KeyUsage containing `digitalSignature`.
+- Relax imported KeyUsage validation so `digitalSignature` may coexist with other usages, matching the SDK wording.
+- Expand ReadingType classification to the SDK's documented v1/v2-compatible and v3 metering types.
+- Add Itron list paging using returned `results` counts when the meter returns fewer items than requested.
+- Use `Accept: application/sep+xml;level=-S1` for IEEE 2030.5 requests.
+- Centralize app version reporting and add CI root/add-on source parity checks.
+- Preserve 0.4.4 real-hardware freshness, cached-profile, meter-health, and MQTT outage/recovery behavior.
+
 ## 0.4.4b3
 
 - Treat temporary MQTT broker/Supervisor outages as warnings while meter polling continues.

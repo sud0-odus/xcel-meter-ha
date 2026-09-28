@@ -1,7 +1,7 @@
-name: "Xcel Meter HA Diagnostic"
-version: "0.4.4b3"
+name: "Xcel Meter HA"
+version: "0.4.5b1"
 slug: "xcel_meter_diagnostic"
-description: "Validate Xcel/Itron IEEE 2030.5 identity and meter readings directly inside Home Assistant"
+description: "Local-first Xcel/Itron IEEE 2030.5 smart-meter bridge for Home Assistant"
 arch:
   - amd64
   - aarch64
@@ -21,17 +21,21 @@ options:
   meter_port: 8081
   expected_lfdi: ""
   identity_source: "auto"
+  migrate_legacy_identity: true
+  generate_identity_if_missing: true
   legacy_addon_slug: ""
   timeout: 8
   poll_interval: 60
   log_level: "INFO"
-  mqtt_enabled: false
+  mqtt_enabled: true
   energy_export_enabled: false
 schema:
-  meter_ip: str
+  meter_ip: str?
   meter_port: port
   expected_lfdi: str?
   identity_source: list(auto|own|legacy)
+  migrate_legacy_identity: bool
+  generate_identity_if_missing: bool
   legacy_addon_slug: str?
   timeout: int
   poll_interval: int

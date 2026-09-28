@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from .certificate import CertificateInfo
 from .identity import normalize_lfdi
 from .models import MeterSnapshot
+from .version import APP_VERSION
 
 
 APP_NAME = "xcel-meter-ha"
-APP_VERSION = "0.4.4b3"
 SUPPORT_URL = "https://github.com/sud0-odus/xcel-meter-ha"
 
 

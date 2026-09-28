@@ -1,6 +1,8 @@
 import ssl
 
 from xcel_meter.http import (
+    IEEE2030_5_ACCEPT,
+    IEEE2030_5_TLS_CIPHER,
     _is_transient_bad_signature,
     _is_transient_handshake_timeout,
     parse_http_response,
@@ -56,3 +58,8 @@ def test_normal_connection_error_is_not_handshake_timeout():
     )
 
     assert not _is_transient_handshake_timeout(error)
+
+
+def test_sdk_aligned_http_and_tls_constants():
+    assert IEEE2030_5_ACCEPT == "application/sep+xml;level=-S1"
+    assert IEEE2030_5_TLS_CIPHER == "ECDHE-ECDSA-AES128-CCM8:@SECLEVEL=0"

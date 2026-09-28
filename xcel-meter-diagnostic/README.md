@@ -1,5 +1,7 @@
-# Xcel Meter HA Diagnostic
+# Xcel Meter HA
 
-Experimental Home Assistant-native hardware validation for Xcel Energy Itron meters.
+Home Assistant app for local Xcel Energy / Itron IEEE 2030.5 meter readings.
 
-This is the v0.3 diagnostic milestone. It validates identity, TLS, IEEE 2030.5 discovery, and core readings inside Home Assistant before MQTT is added.
+0.4.5b1 adds SDK-aligned native identity generation, safe legacy identity migration into app-owned storage, full documented ReadingType discovery signatures, and Itron list paging while preserving the real-hardware freshness and MQTT resilience validated in 0.4.4.
+
+See `DOCS.md` before upgrading/removing the legacy add-on.

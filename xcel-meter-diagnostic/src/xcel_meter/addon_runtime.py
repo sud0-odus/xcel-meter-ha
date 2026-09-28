@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import time
-from collections.abc import Iterable
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -15,35 +13,24 @@ from .freshness import (
 )
 from .http import Ieee20305Client, MeterHttpError
 from .identity import normalize_lfdi
+from .identity_lifecycle import (
+    IdentityLocation,
+    find_legacy_identity,
+    find_own_identity,
+    prepare_identity,
+    read_identity_manifest,
+    write_identity_manifest,
+)
 from .models import MeterSnapshot
 from .mqtt_runtime import MqttPublisher, MqttUnavailableError
 from .reader import MeterProfile, discover_core_profile, read_core_snapshot
+from .version import APP_VERSION
 
 LOGGER = logging.getLogger("xcel_meter.addon")
 
 
-@dataclass(frozen=True)
-class IdentityLocation:
-    source: str
-    cert_path: Path
-    key_path: Path
-
-
-def _candidate_pairs(directory: Path) -> Iterable[tuple[Path, Path]]:
-    names = [
-        ("cert.pem", "key.pem"),
-        (".cert.pem", ".key.pem"),
-        ("client.crt", "client.key"),
-    ]
-    for cert_name, key_name in names:
-        yield directory / cert_name, directory / key_name
-
-
-def _find_pair(directory: Path) -> tuple[Path, Path] | None:
-    for cert_path, key_path in _candidate_pairs(directory):
-        if cert_path.is_file() and key_path.is_file():
-            return cert_path, key_path
-    return None
+class OnboardingPendingError(RuntimeError):
+    """Expected onboarding state that is not a meter-health failure."""
 
 
 def find_identity(
@@ -52,43 +39,21 @@ def find_identity(
     all_addon_configs_root: Path = Path("/addon_configs"),
     legacy_addon_slug: str | None = None,
 ) -> IdentityLocation:
+    """Compatibility lookup helper; does not generate or migrate identities."""
     source = source.strip().lower()
     if source not in {"auto", "own", "legacy"}:
         raise ValueError(f"Unsupported identity_source {source!r}; use auto, own, or legacy")
-
-    own_dirs = [own_config_root / "certs", own_config_root]
     if source in {"auto", "own"}:
-        for directory in own_dirs:
-            pair = _find_pair(directory)
-            if pair:
-                return IdentityLocation("own", pair[0], pair[1])
+        own = find_own_identity(own_config_root)
+        if own:
+            return own
         if source == "own":
-            raise FileNotFoundError(
-                "No certificate/key found in this app's public config. "
-                "Expected /config/certs/cert.pem and /config/certs/key.pem."
-            )
-
+            raise FileNotFoundError("No certificate/key found in this app's config")
     if source in {"auto", "legacy"}:
-        legacy_dirs: list[Path] = []
-        if legacy_addon_slug:
-            legacy_dirs.append(all_addon_configs_root / legacy_addon_slug / "certs")
-        elif all_addon_configs_root.is_dir():
-            legacy_dirs.extend(
-                p / "certs"
-                for p in sorted(all_addon_configs_root.iterdir())
-                if p.is_dir() and p.name.endswith("_xcel-itron-mqtt")
-            )
-
-        for directory in legacy_dirs:
-            pair = _find_pair(directory)
-            if pair:
-                return IdentityLocation("legacy", pair[0], pair[1])
-
-        raise FileNotFoundError(
-            "No legacy Xcel iTron MQTT certificate/key found. "
-            "Keep the legacy app installed or place cert.pem/key.pem under this app's config/certs folder."
-        )
-
+        legacy = find_legacy_identity(all_addon_configs_root, legacy_addon_slug)
+        if legacy:
+            return legacy
+        raise FileNotFoundError("No legacy Xcel iTron MQTT certificate/key found")
     raise RuntimeError("Identity discovery failed")
 
 
@@ -116,7 +81,9 @@ def validate_identity(
     LOGGER.info("EC curve: %s", info.curve)
     LOGGER.info("Certificate/key match: %s", "OK" if info.key_matches else "FAIL")
     LOGGER.info("IEEE 2030.5 policy: %s", "OK" if info.ieee_policy_present else "FAIL")
-    LOGGER.info("Digital-signature key usage: %s", "OK" if info.digital_signature_only else "FAIL")
+    LOGGER.info("Digital-signature key usage: %s", "OK" if info.digital_signature_present else "FAIL")
+    LOGGER.info("Certificate profile critical extensions: %s", "OK" if info.key_usage_critical and info.ieee_policy_critical else "FAIL")
+    LOGGER.info("Certificate self-signed: %s", "OK" if info.self_signed else "FAIL")
 
     if info.is_expired:
         raise RuntimeError("Client certificate is expired")
@@ -124,8 +91,14 @@ def validate_identity(
         raise RuntimeError("Client certificate and private key do not match")
     if not info.ieee_policy_present:
         raise RuntimeError("Required IEEE 2030.5 certificate policy is missing")
-    if not info.digital_signature_only:
-        raise RuntimeError("Certificate key usage does not match IEEE 2030.5 client requirements")
+    if not info.digital_signature_present or not info.key_usage_critical:
+        raise RuntimeError("Certificate requires critical KeyUsage containing digitalSignature")
+    if not info.ieee_policy_critical:
+        raise RuntimeError("IEEE 2030.5 certificate policy extension must be critical")
+    if not info.self_signed:
+        raise RuntimeError("IEEE 2030.5 client certificate must be self-signed")
+    if info.signature_hash.lower() != "sha256":
+        raise RuntimeError(f"Unsupported certificate signature hash {info.signature_hash}; expected SHA-256")
     if info.curve != "secp256r1":
         raise RuntimeError(f"Unsupported EC curve {info.curve}; expected secp256r1/P-256")
 
@@ -168,9 +141,6 @@ def run_once(
     profile: MeterProfile | None = None,
 ) -> tuple[MeterProfile, MeterSnapshot, CertificateInfo]:
     meter_ip = str(options.get("meter_ip") or "").strip()
-    if not meter_ip:
-        raise RuntimeError("meter_ip is required")
-
     meter_port = int(options.get("meter_port", 8081))
     timeout = float(options.get("timeout", 8))
     source = str(options.get("identity_source", "auto"))
@@ -182,13 +152,38 @@ def run_once(
 
     LOGGER.info("============================================================")
     LOGGER.info("Xcel Meter HA diagnostic run")
-    LOGGER.info("Meter endpoint: %s:%s", meter_ip, meter_port)
+    if meter_ip:
+        LOGGER.info("Meter endpoint: %s:%s", meter_ip, meter_port)
+    else:
+        LOGGER.info("Meter endpoint: not configured yet")
 
-    location = find_identity(source, legacy_addon_slug=legacy_slug)
-    identity_info = validate_identity(
-        location,
-        expected_lfdi,
+    preparation = prepare_identity(
+        source,
+        legacy_addon_slug=legacy_slug,
+        migrate_legacy=bool(options.get("migrate_legacy_identity", True)),
+        generate_if_missing=bool(options.get("generate_identity_if_missing", True)),
     )
+    location = preparation.location
+    identity_info = validate_identity(location, expected_lfdi)
+    write_identity_manifest(preparation)
+
+    if preparation.action == "generated":
+        LOGGER.warning(
+            "NEW app-owned IEEE 2030.5 identity generated. Register this LFDI in Xcel Energy "
+            "Launchpad and keep this identity; the app will retry while provisioning completes: %s",
+            _format_lfdi(identity_info.lfdi),
+        )
+    elif preparation.action == "migrated":
+        LOGGER.info(
+            "Legacy identity safely migrated into app-owned storage with unchanged LFDI: %s",
+            _format_lfdi(identity_info.lfdi),
+        )
+
+    if not meter_ip:
+        raise OnboardingPendingError(
+            "Client identity is ready. Register/copy the displayed LFDI as needed, then configure "
+            "meter_ip to begin local meter validation. The identity will be reused unchanged."
+        )
 
     client = Ieee20305Client(
         meter_ip,
@@ -197,31 +192,46 @@ def run_once(
         location.key_path,
         timeout=timeout,
     )
-    if profile is None:
-        LOGGER.info(
-            "Meter profile cache: MISS - discovering meter layout"
-        )
+    try:
+        if profile is None:
+            LOGGER.info(
+                "Meter profile cache: MISS - discovering meter layout"
+            )
 
-        profile = discover_core_profile(
+            profile = discover_core_profile(
+                client,
+                include_received=energy_export_enabled,
+            )
+
+            LOGGER.info(
+                "Meter profile cache: READY - %s core reading paths",
+                len(profile.core_readings),
+            )
+        else:
+            LOGGER.debug(
+                "Meter profile cache: HIT - using cached reading paths"
+            )
+
+        snapshot = read_core_snapshot(
             client,
-            include_received=energy_export_enabled,
+            meter_ip,
+            meter_port,
+            profile=profile,
         )
-
-        LOGGER.info(
-            "Meter profile cache: READY - %s core reading paths",
-            len(profile.core_readings),
-        )
-    else:
-        LOGGER.debug(
-            "Meter profile cache: HIT - using cached reading paths"
-        )
-
-    snapshot = read_core_snapshot(
-        client,
-        meter_ip,
-        meter_port,
-        profile=profile,
-    )
+    except MeterHttpError as exc:
+        manifest = read_identity_manifest()
+        if (
+            exc.kind == "client_auth"
+            and manifest.get("identity_origin") == "generated"
+            and not bool(manifest.get("meter_authenticated", False))
+        ):
+            raise OnboardingPendingError(
+                "The meter rejected this newly generated client identity during TLS. "
+                "Because this LFDI has never authenticated successfully, Launchpad registration/"
+                "provisioning may still be pending. Keep the same identity and retry; do not "
+                "regenerate it. If provisioning should be complete, verify the registered LFDI."
+            ) from exc
+        raise
 
     LOGGER.info("TLS/IEEE 2030.5 connection: PASS")
     LOGGER.info("Itron agent version: %s", snapshot.agent_version.value)
@@ -315,6 +325,7 @@ def run_once(
         observed_at_text,
     )
     LOGGER.info("RESULT: PASS")
+    write_identity_manifest(preparation, meter_authenticated=True)
 
     LOGGER.debug(
         "Normalized snapshot: %s",
@@ -335,10 +346,10 @@ def main() -> int:
     poll_interval = int(options.get("poll_interval", 60))
     poll_interval = max(poll_interval, 15)
 
-    LOGGER.info("Xcel Meter HA Diagnostic v0.4.4b3 starting")
+    LOGGER.info("Xcel Meter HA v%s starting", APP_VERSION)
     LOGGER.info(
-        "This build never modifies certificate files. "
-        "MQTT publishing is controlled by mqtt_enabled."
+        "Native identity lifecycle enabled: reuse app identity, safely migrate legacy identity, "
+        "or generate once when no identity exists. MQTT is controlled by mqtt_enabled."
     )
 
     profile: MeterProfile | None = None
@@ -364,6 +375,8 @@ def main() -> int:
                 options,
                 profile,
             )
+        except OnboardingPendingError as exc:
+            LOGGER.warning("Onboarding pending: %s", exc)
         except Exception as exc:  # noqa: BLE001 - top-level service diagnostics
             LOGGER.error("Meter poll failed; retrying on the next poll: %s", exc)
 

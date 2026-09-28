@@ -7,7 +7,8 @@ from typing import Any
 
 class AgentVersion(str, Enum):
     UNKNOWN = "unknown"
-    V2 = "2.x"
+    V1_V2 = "1.x/2.x"
+    V2 = "1.x/2.x"  # compatibility alias for pre-0.4.5 callers
     V3 = "3.x"
 
 
@@ -15,11 +16,25 @@ class ReadingKind(str, Enum):
     INSTANTANEOUS_DEMAND = "instantaneous_demand"
     CURRENT_SUMMATION_DELIVERED = "current_summation_delivered"
     CURRENT_SUMMATION_RECEIVED = "current_summation_received"
+    VAH_DELIVERED = "vah_delivered"
+    VAH_RECEIVED = "vah_received"
+    VARH_DELIVERED = "varh_delivered"
+    VARH_RECEIVED = "varh_received"
+    MAX_DEMAND_DELIVERED = "max_demand_delivered"
+    MAX_DEMAND_RECEIVED = "max_demand_received"
     TOU_WH_DELIVERED = "tou_wh_delivered"
     TOU_WH_RECEIVED = "tou_wh_received"
     WH_INTERVAL_DELIVERED = "wh_interval_delivered"
     WH_INTERVAL_RECEIVED = "wh_interval_received"
     WH_INTERVAL_NET = "wh_interval_net"
+    VAH_INTERVAL_DELIVERED = "vah_interval_delivered"
+    VAH_INTERVAL_RECEIVED = "vah_interval_received"
+    VARH_INTERVAL_DELIVERED = "varh_interval_delivered"
+    VARH_INTERVAL_RECEIVED = "varh_interval_received"
+    POWER_FACTOR_ABC = "power_factor_abc"
+    POWER_FACTOR_A = "power_factor_a"
+    POWER_FACTOR_B = "power_factor_b"
+    POWER_FACTOR_C = "power_factor_c"
     UNKNOWN = "unknown"
 
 
@@ -76,5 +91,6 @@ class MeterSnapshot:
         data = asdict(self)
         data["agent_version"] = self.agent_version.value
         for reading in data["readings"]:
-            reading["kind"] = reading["kind"].value if hasattr(reading["kind"], "value") else reading["kind"]
+            value = reading["kind"]
+            reading["kind"] = value.value if hasattr(value, "value") else value
         return data

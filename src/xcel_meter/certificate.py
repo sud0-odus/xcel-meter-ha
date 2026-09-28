@@ -6,6 +6,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from cryptography import x509
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID, ObjectIdentifier
@@ -24,7 +25,12 @@ class CertificateInfo:
     is_expired: bool
     key_matches: bool
     ieee_policy_present: bool
+    ieee_policy_critical: bool
+    digital_signature_present: bool
     digital_signature_only: bool
+    key_usage_critical: bool
+    self_signed: bool
+    signature_hash: str
     curve: str
 
 
@@ -33,7 +39,7 @@ def _utc_now() -> datetime:
 
 
 def compute_lfdi(cert: x509.Certificate) -> str:
-    """Return IEEE 2030.5 LFDI: SHA-256 certificate fingerprint, left-truncated to 160 bits."""
+    """IEEE 2030.5 LFDI: SHA-256(DER certificate), left-truncated to 160 bits."""
     der = cert.public_bytes(serialization.Encoding.DER)
     return sha256(der).hexdigest()[:40].upper()
 
@@ -102,6 +108,23 @@ def generate_client_identity(
     return inspect_client_identity(cert_path, key_path)
 
 
+def _is_self_signed(cert: x509.Certificate) -> bool:
+    if cert.issuer != cert.subject:
+        return False
+    public_key = cert.public_key()
+    if not isinstance(public_key, ec.EllipticCurvePublicKey):
+        return False
+    try:
+        public_key.verify(
+            cert.signature,
+            cert.tbs_certificate_bytes,
+            ec.ECDSA(cert.signature_hash_algorithm),
+        )
+    except (InvalidSignature, TypeError, ValueError):
+        return False
+    return True
+
+
 def inspect_client_identity(cert_path: Path, key_path: Path) -> CertificateInfo:
     cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
     key = serialization.load_pem_private_key(key_path.read_bytes(), password=None)
@@ -116,15 +139,20 @@ def inspect_client_identity(cert_path: Path, key_path: Path) -> CertificateInfo:
     )
 
     try:
-        policies = cert.extensions.get_extension_for_class(x509.CertificatePolicies).value
+        policy_ext = cert.extensions.get_extension_for_class(x509.CertificatePolicies)
         ieee_policy_present = any(
-            p.policy_identifier == IEEE_2030_5_SELF_SIGNED_CLIENT_POLICY for p in policies
+            p.policy_identifier == IEEE_2030_5_SELF_SIGNED_CLIENT_POLICY
+            for p in policy_ext.value
         )
+        ieee_policy_critical = policy_ext.critical
     except x509.ExtensionNotFound:
         ieee_policy_present = False
+        ieee_policy_critical = False
 
     try:
-        usage = cert.extensions.get_extension_for_class(x509.KeyUsage).value
+        usage_ext = cert.extensions.get_extension_for_class(x509.KeyUsage)
+        usage = usage_ext.value
+        digital_signature_present = usage.digital_signature
         digital_signature_only = usage.digital_signature and not any(
             [
                 usage.content_commitment,
@@ -135,15 +163,18 @@ def inspect_client_identity(cert_path: Path, key_path: Path) -> CertificateInfo:
                 usage.crl_sign,
             ]
         )
+        key_usage_critical = usage_ext.critical
     except x509.ExtensionNotFound:
+        digital_signature_present = False
         digital_signature_only = False
+        key_usage_critical = False
 
     not_before = cert.not_valid_before_utc
     not_after = cert.not_valid_after_utc
     now = _utc_now()
     days_remaining = int((not_after - now).total_seconds() // 86400)
-
     curve = getattr(getattr(cert.public_key(), "curve", None), "name", "unknown")
+    signature_hash = getattr(cert.signature_hash_algorithm, "name", "unknown")
 
     return CertificateInfo(
         cert_path=cert_path,
@@ -155,6 +186,11 @@ def inspect_client_identity(cert_path: Path, key_path: Path) -> CertificateInfo:
         is_expired=now >= not_after,
         key_matches=cert_pub == key_pub,
         ieee_policy_present=ieee_policy_present,
+        ieee_policy_critical=ieee_policy_critical,
+        digital_signature_present=digital_signature_present,
         digital_signature_only=digital_signature_only,
+        key_usage_critical=key_usage_critical,
+        self_signed=_is_self_signed(cert),
+        signature_hash=signature_hash,
         curve=curve,
     )

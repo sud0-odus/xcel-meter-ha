@@ -23,7 +23,11 @@ def _print_cert(info) -> None:
     print(f"EC curve: {info.curve}")
     print(f"Key matches certificate: {info.key_matches}")
     print(f"IEEE 2030.5 client policy present: {info.ieee_policy_present}")
-    print(f"Digital-signature key usage: {info.digital_signature_only}")
+    print(f"Digital-signature key usage present: {info.digital_signature_present}")
+    print(f"Critical KeyUsage: {info.key_usage_critical}")
+    print(f"Critical IEEE policy: {info.ieee_policy_critical}")
+    print(f"Self-signed: {info.self_signed}")
+    print(f"Signature hash: {info.signature_hash}")
     if info.days_remaining <= 90:
         print("WARNING: certificate expires within 90 days; rotate and provision a replacement before expiry.")
 
@@ -46,8 +50,14 @@ def _validate_identity(cert_dir: str, expected_lfdi: str | None) -> tuple[Path, 
         raise RuntimeError("Client certificate is expired")
     if not check.info.key_matches:
         raise RuntimeError("Client certificate and private key do not match")
-    if not check.info.ieee_policy_present:
-        raise RuntimeError("Required IEEE 2030.5 client certificate policy is missing")
+    if not check.info.ieee_policy_present or not check.info.ieee_policy_critical:
+        raise RuntimeError("Required critical IEEE 2030.5 client certificate policy is missing")
+    if not check.info.digital_signature_present or not check.info.key_usage_critical:
+        raise RuntimeError("Certificate requires critical KeyUsage containing digitalSignature")
+    if not check.info.self_signed:
+        raise RuntimeError("IEEE 2030.5 client certificate must be self-signed")
+    if check.info.signature_hash.lower() != "sha256":
+        raise RuntimeError("IEEE 2030.5 client certificate must use SHA-256")
     if check.info.curve != "secp256r1":
         raise RuntimeError(f"Unsupported EC curve {check.info.curve}; expected secp256r1/P-256")
     return check.info.cert_path, check.info.key_path

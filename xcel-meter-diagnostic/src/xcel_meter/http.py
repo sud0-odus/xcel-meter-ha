@@ -8,8 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .version import APP_VERSION
+
 
 LOGGER = logging.getLogger("xcel_meter.http")
+
+IEEE2030_5_ACCEPT = "application/sep+xml;level=-S1"
+IEEE2030_5_TLS_CIPHER = "ECDHE-ECDSA-AES128-CCM8:@SECLEVEL=0"
 
 
 class MeterHttpError(RuntimeError):
@@ -72,7 +77,7 @@ def build_ssl_context(cert_path: Path, key_path: Path) -> ssl.SSLContext:
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.maximum_version = ssl.TLSVersion.TLSv1_2
     context.options |= ssl.OP_LEGACY_SERVER_CONNECT
-    context.set_ciphers("ECDHE-ECDSA-AES128-CCM8:@SECLEVEL=0")
+    context.set_ciphers(IEEE2030_5_TLS_CIPHER)
     context.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
     return context
 
@@ -163,8 +168,8 @@ class Ieee20305Client:
         request = (
             f"GET {request_path} HTTP/1.1\r\n"
             f"Host: {self.host}:{self.port}\r\n"
-            "Accept: application/sep+xml, application/xml, text/xml, */*\r\n"
-            "User-Agent: xcel-meter-ha/0.3\r\n"
+            f"Accept: {IEEE2030_5_ACCEPT}\r\n"
+            f"User-Agent: xcel-meter-ha/{APP_VERSION}\r\n"
             "Connection: close\r\n\r\n"
         ).encode("ascii")
 
@@ -205,9 +210,10 @@ class Ieee20305Client:
                     time.sleep(0.25)
                     continue
 
+                kind = "client_auth" if "bad certificate" in str(exc).lower() else "transport"
                 raise MeterHttpError(
                     classify_ssl_error(exc),
-                    kind="transport",
+                    kind=kind,
                     path=request_path,
                 ) from exc
 
