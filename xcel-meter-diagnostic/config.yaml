@@ -1,5 +1,5 @@
 name: "Xcel Meter HA"
-version: "0.4.5b3"
+version: "0.4.5"
 slug: "xcel_meter_diagnostic"
 description: "Local-first Xcel/Itron IEEE 2030.5 smart-meter bridge for Home Assistant"
 arch:

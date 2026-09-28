@@ -4,7 +4,7 @@ Local-first Xcel Energy / Itron IEEE 2030.5 smart-meter data for Home Assistant.
 
 Xcel Meter HA connects directly to a Launchpad-enabled meter on your local network, discovers the readings the meter actually exposes, validates the source data, and publishes one clean MQTT device into Home Assistant. Normal meter reads do not depend on a cloud polling service.
 
-> **Project status:** `0.4.5b3` is the release-hardening candidate for native onboarding. Production meter communication, identity migration, freshness handling, and MQTT outage recovery have been validated on real hardware. New-identity onboarding and Itron Agent v1/v3 compatibility have also been exercised against Xcel's secure SDK meter simulator.
+> **Project status:** `0.4.5` is the first stable native-onboarding release. Production meter communication, durable identity migration, freshness handling, MQTT outage recovery, and the Home Assistant upgrade path have been validated on real hardware. New-identity onboarding and Itron Agent v1/v3 compatibility have also been exercised against Xcel's secure SDK meter simulator.
 
 [![Open your Home Assistant instance and add the Xcel Meter HA repository](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fsud0-odus%2Fxcel-meter-ha)
 

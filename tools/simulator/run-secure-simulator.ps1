@@ -104,7 +104,7 @@ if (Test-Path (Join-Path $ResolvedSdkRoot "launchpad\Dockerfile")) {
 }
 
 $script:HostPort = $HostPort
-$script:ClientImage = "xcel-meter-ha-sim-client:0.4.5b3"
+$script:ClientImage = "xcel-meter-ha-sim-client:0.4.5"
 $script:SimulatorImage = "xcel-launchpad-meter-simulator:local"
 $script:ContainerName = "xcel-meter-sdk-simulator-secure"
 $WorkRoot = Join-Path $env:TEMP ("xcel-meter-ha-simulator-" + [guid]::NewGuid().ToString("N"))

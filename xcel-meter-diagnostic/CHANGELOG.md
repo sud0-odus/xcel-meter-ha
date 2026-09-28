@@ -1,3 +1,14 @@
+## 0.4.5
+
+- Promote the native-onboarding line from release candidate to stable 0.4.5 after production Home Assistant and secure Xcel SDK simulator validation.
+- Preserve durable app-owned IEEE 2030.5 identities and safe legacy identity migration without changing a provisioned LFDI.
+- Include SDK-aligned certificate validation, ReadingType discovery, list paging, and onboarding/provisioning safeguards.
+- Preserve source-freshness protection and isolation between meter health and MQTT/Home Assistant outages.
+- Include the expanded onboarding, migration, troubleshooting, support, and validation documentation.
+- Include the optional community rate-profile framework and Home Assistant TOU package generator without putting tariff logic into the meter runtime.
+- Use a safe provider-holiday toggle with automatic midnight reset in generated TOU packages.
+- Keep meter protocol/runtime behavior unchanged from the validated 0.4.5b3 release-hardening candidate.
+
 ## 0.4.5b3
 
 - Harden the identity manifest so a client that has authenticated successfully can never be downgraded to a never-authenticated onboarding state by a later failure.
