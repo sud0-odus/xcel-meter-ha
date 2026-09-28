@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-
 from dataclasses import dataclass
 
 from .discovery import (
@@ -19,9 +17,6 @@ from .models import (
     ReadingTypeInfo,
 )
 from .xmlutil import child_text, local_name, parse_xml
-
-
-LOGGER = logging.getLogger(__name__)
 
 
 BASE_CORE_KINDS = {
@@ -59,88 +54,62 @@ def _scaled_value(
     )
 
 
-def _log_reading_time_metadata(
+@dataclass(frozen=True)
+class _ParsedReading:
+    value: float
+    raw_value: int | float
+    sample_start_epoch: int | None
+    sample_duration_seconds: int | None
+
+
+def _optional_int(value: str | None) -> int | None:
+    if value is None or value == "":
+        return None
+
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _reading_time_metadata(
     root,
-    href: str,
-) -> None:
-    time_period = None
-
+) -> tuple[int | None, int | None]:
     for node in root.iter():
-        if local_name(node.tag) == "timePeriod":
-            time_period = node
-            break
+        if local_name(node.tag) != "timePeriod":
+            continue
 
-    if time_period is not None:
-        LOGGER.info(
-            "Instantaneous reading time metadata: "
-            "href=%s timePeriod.start=%s "
-            "timePeriod.duration=%s",
-            href,
-            child_text(time_period, "start"),
-            child_text(time_period, "duration"),
-        )
-        return
+        start = _optional_int(child_text(node, "start"))
+        duration = _optional_int(child_text(node, "duration"))
 
-    timestamp_fields: list[str] = []
+        if duration is not None and duration < 0:
+            duration = None
 
-    interesting_names = {
-        "start",
-        "duration",
-        "dateTime",
-        "createdDateTime",
-        "localTime",
-        "timeStamp",
-        "timestamp",
-    }
+        return start, duration
 
-    for node in root.iter():
-        name = local_name(node.tag)
-
-        if (
-            name in interesting_names
-            and node.text is not None
-            and node.text.strip()
-        ):
-            timestamp_fields.append(
-                f"{name}={node.text.strip()}"
-            )
-
-    if timestamp_fields:
-        LOGGER.info(
-            "Instantaneous reading time metadata: "
-            "href=%s fields=%s",
-            href,
-            ", ".join(timestamp_fields),
-        )
-    else:
-        LOGGER.info(
-            "Instantaneous reading time metadata: "
-            "href=%s NOT REPORTED",
-            href,
-        )
+    return None, None
 
 
 def _read_single_value(
     client: XmlClient,
     href: str,
     info: ReadingTypeInfo,
-    *,
-    log_time_metadata: bool = False,
-) -> tuple[float, int | float] | None:
+) -> _ParsedReading | None:
     root = parse_xml(client.get_xml(href))
-
-    if log_time_metadata:
-        _log_reading_time_metadata(
-            root,
-            href,
-        )
-
     raw = child_text(root, "value")
 
     if raw is None:
         return None
 
-    return _scaled_value(raw, info)
+    scaled, numeric = _scaled_value(raw, info)
+    sample_start, sample_duration = _reading_time_metadata(root)
+
+    return _ParsedReading(
+        value=scaled,
+        raw_value=numeric,
+        sample_start_epoch=sample_start,
+        sample_duration_seconds=sample_duration,
+    )
 
 
 def _unit_for(kind: ReadingKind) -> str:
@@ -219,31 +188,29 @@ def read_core_snapshot(
         if not descriptor.reading_link:
             continue
 
-        value = _read_single_value(
+        parsed = _read_single_value(
             client,
             descriptor.reading_link,
             info,
-            log_time_metadata=(
-                descriptor.kind
-                == ReadingKind.INSTANTANEOUS_DEMAND
-            ),
         )
 
-        if value is None:
+        if parsed is None:
             # Official SDK treats an absent value as
             # unsupported/unavailable.
             continue
 
-        scaled, raw = value
-
         core.append(
             CoreReading(
                 kind=descriptor.kind,
-                value=scaled,
+                value=parsed.value,
                 unit=_unit_for(descriptor.kind),
-                raw_value=raw,
+                raw_value=parsed.raw_value,
                 multiplier=info.power_of_ten_multiplier,
                 description=descriptor.description,
+                sample_start_epoch=parsed.sample_start_epoch,
+                sample_duration_seconds=(
+                    parsed.sample_duration_seconds
+                ),
             )
         )
 

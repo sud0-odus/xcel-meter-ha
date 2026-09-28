@@ -1,3 +1,10 @@
+## 0.4.4b2
+
+- Preserve meter-reported Reading `timePeriod.start` and `duration` as first-class sample metadata.
+- Reject Instantaneous Demand older than 120 seconds as stale, retain the meter profile, and avoid publishing stale power as current.
+- Keep meters that do not report source timestamps compatible; freshness remains unavailable rather than failing the poll.
+- Preserve missing sample duration as unknown and reject meter timestamps more than 5 seconds in the future while tolerating small clock skew.
+
 ## 0.4.4b1
 
 - Add temporary real-meter instrumentation for instantaneous-reading timestamp metadata.

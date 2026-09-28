@@ -155,7 +155,15 @@ def test_real_meter_style_snapshot_reads_core_values():
         """,
         "/upt/1/mr/3/r": "<Reading><value>40808961</value></Reading>",
         "/upt/1/mr/2/r": "<Reading><value>1250</value></Reading>",
-        "/upt/1/mr/1/r": "<Reading><value>875</value></Reading>",
+        "/upt/1/mr/1/r": """
+            <Reading>
+                <timePeriod>
+                    <start>1790557488</start>
+                    <duration>1</duration>
+                </timePeriod>
+                <value>875</value>
+            </Reading>
+        """,
     }
 
     snapshot = read_core_snapshot(
@@ -170,3 +178,12 @@ def test_real_meter_style_snapshot_reads_core_values():
     assert snapshot.energy_delivered_wh == 40808961
     assert snapshot.energy_received_wh == 1250
     assert len(snapshot.readings) == 3
+
+    power = next(
+        item
+        for item in snapshot.readings
+        if item.kind == ReadingKind.INSTANTANEOUS_DEMAND
+    )
+
+    assert power.sample_start_epoch == 1790557488
+    assert power.sample_duration_seconds == 1

@@ -7,3 +7,6 @@ certs/
 *.key
 *.pem
 .env
+
+# Local delivery / patch artifacts
+/delivery/

@@ -54,6 +54,8 @@ class CoreReading:
     raw_value: int | float
     multiplier: int
     description: str
+    sample_start_epoch: int | None = None
+    sample_duration_seconds: int | None = None
 
 
 @dataclass(frozen=True)

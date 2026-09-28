@@ -9,6 +9,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .certificate import CertificateInfo, inspect_client_identity
+from .freshness import (
+    DEFAULT_MAX_SAMPLE_AGE_SECONDS,
+    instantaneous_power_freshness,
+)
 from .http import Ieee20305Client, MeterHttpError
 from .identity import normalize_lfdi
 from .models import MeterSnapshot
@@ -265,10 +269,51 @@ def run_once(
             f"were unavailable: {', '.join(missing)}"
         )
 
-    observed_at = datetime.now(UTC).isoformat()
+    observed_at = datetime.now(UTC)
+    freshness = instantaneous_power_freshness(
+        snapshot,
+        observed_at,
+    )
+
+    if freshness is None:
+        LOGGER.info(
+            "Instantaneous sample freshness: unavailable "
+            "(meter did not report timePeriod.start)"
+        )
+    else:
+        sample_start = datetime.fromtimestamp(
+            freshness.sample_start_epoch,
+            UTC,
+        ).isoformat()
+
+        duration_text = (
+            f"{freshness.sample_duration_seconds}s"
+            if freshness.sample_duration_seconds is not None
+            else "unknown"
+        )
+
+        LOGGER.info(
+            "Instantaneous sample: start=%s duration=%s age=%.3fs",
+            sample_start,
+            duration_text,
+            freshness.age_seconds,
+        )
+
+        if freshness.stale:
+            raise RuntimeError(
+                "Instantaneous Demand sample is stale: "
+                f"age={freshness.age_seconds:.1f}s exceeds "
+                f"{DEFAULT_MAX_SAMPLE_AGE_SECONDS:.0f}s; "
+                "meter-reported power will not be published as current"
+            )
+
+    observed_at_text = observed_at.isoformat()
 
     LOGGER.info("Connection health: HEALTHY")
-    LOGGER.info("Last successful read (UTC observation): %s", observed_at)
+    LOGGER.info(
+        "Last successful read (UTC observation): %s",
+        observed_at_text,
+    )
     LOGGER.info("RESULT: PASS")
 
     LOGGER.debug(
@@ -290,7 +335,7 @@ def main() -> int:
     poll_interval = int(options.get("poll_interval", 60))
     poll_interval = max(poll_interval, 15)
 
-    LOGGER.info("Xcel Meter HA Diagnostic v0.4.4b1 starting")
+    LOGGER.info("Xcel Meter HA Diagnostic v0.4.4b2 starting")
     LOGGER.info(
         "This build never modifies certificate files. "
         "MQTT publishing is controlled by mqtt_enabled."
