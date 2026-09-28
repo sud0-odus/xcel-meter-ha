@@ -20,6 +20,16 @@ Xcel Meter HA connects directly to a Launchpad-enabled meter on your local netwo
 - Separate meter and MQTT failure domains so a broker outage is not reported as a meter failure.
 - SDK-aligned paging and Itron v1/v2-compatible and v3 ReadingType classification.
 
+### What it looks like in Home Assistant
+
+Xcel Meter HA publishes one Home Assistant device with current power, cumulative energy, health, and identity diagnostics.
+
+![Xcel Energy Smart Meter device in Home Assistant](docs/images/ha-smart-meter-device.png)
+
+The cumulative delivered-energy sensor can be used as a grid-import source in Home Assistant's Energy dashboard.
+
+![Home Assistant Energy dashboard using Xcel Meter HA](docs/images/ha-energy-dashboard.png)
+
 ## Start here
 
 | You are... | Read this first |

@@ -1,18 +1,30 @@
-# Documentation Screenshot Plan
+# Documentation Screenshot Inventory
 
-The documentation intentionally uses Mermaid diagrams and the My Home Assistant install badge immediately, while Xcel/Home Assistant UI screenshots should be captured from current interfaces rather than copied from older community projects.
+These images support the written onboarding and Home Assistant instructions. They were captured or prepared from current interfaces on **2026-09-28** and should be refreshed when the Xcel or Home Assistant UI changes materially.
 
-Recommended screenshots:
+Screenshots are supporting visuals, not the sole source of instructions. The surrounding documentation should remain usable if a portal label or layout changes.
 
-| File | Capture | Redact/check |
+| File | Shows | Used in |
 |---|---|---|
-| `xcel-launchpad-enroll.png` | Xcel Meters and Devices / Launchpad enrollment entry point | account name, address, account/meter numbers |
-| `xcel-launchpad-manage.png` | Enrolled meter with Manage action | installation identifiers |
-| `xcel-launchpad-wifi.png` | Wi-Fi Edit/configuration area | SSID/password, account data |
-| `xcel-launchpad-add-device.png` | Add a Device form with LFDI field visible | use a fake/redacted LFDI and redact account data |
-| `ha-add-repository.png` | Home Assistant repository-add dialog | instance URL if identifying |
-| `ha-app-options.png` | Xcel Meter HA configuration screen | meter IP/LFDI if not needed |
-| `ha-device.png` | Xcel Meter HA MQTT device/entities | unique installation IDs |
-| `ha-energy-dashboard.png` | Energy dashboard using delivered/export readings | household-identifying data as desired |
+| `xcel-launchpad-enrolled.png` | Xcel Energy Launchpad enrolled card and **Manage** action | `GETTING_STARTED.md` |
+| `xcel-launchpad-connect-wifi.png` | Meter Wi-Fi setup and 2.4 GHz requirement | `GETTING_STARTED.md` |
+| `xcel-launchpad-add-device-button.png` | **My Devices** area and **Add a Device** action | `GETTING_STARTED.md` |
+| `xcel-launchpad-add-device-form.png` | Add Device form with LFDI, nickname, manufacturer, and device type fields | `GETTING_STARTED.md` |
+| `ha-add-repository.png` | Home Assistant repository-add dialog | `GETTING_STARTED.md` |
+| `ha-addon-overview.png` | Xcel Meter HA add-on overview and controls | `GETTING_STARTED.md` |
+| `ha-addon-options.png` | Xcel Meter HA configuration options | `GETTING_STARTED.md` |
+| `ha-smart-meter-device.png` | Home Assistant device sensors and diagnostics | `README.md`, `GETTING_STARTED.md` |
+| `ha-energy-dashboard.png` | Home Assistant Energy dashboard using cumulative meter energy | `README.md`, `GETTING_STARTED.md` |
 
-When a screenshot is added, include capture date and Home Assistant/Xcel UI context below. Portal wording can change, so screenshots are supporting visuals rather than the only source of instructions.
+## Publication checklist
+
+Before replacing or adding an image:
+
+- crop tightly around the control or result being explained;
+- remove or redact account numbers, addresses, meter numbers, SSIDs/passwords, production IP addresses, and production LFDIs unless they are synthetic;
+- never include private-key contents;
+- prefer synthetic example values when a value itself is not the point of the screenshot;
+- keep text readable on a typical GitHub page without requiring extreme zoom;
+- update this inventory and the capture date when the visual materially changes.
+
+The project intentionally uses its own current screenshots rather than copying UI images from older community repositories.
