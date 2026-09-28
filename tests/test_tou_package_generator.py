@@ -33,8 +33,11 @@ def test_historical_profile_generates_ha_utility_meter_package() -> None:
     assert 'sensor.xcel_tou_current_period' in rendered
     assert 'sensor.xcel_tou_current_season' in rendered
     assert 'unique_id: "xcel_tou_current_rate"' in rendered
-    assert 'input_datetime.xcel_tou_provider_holiday' in rendered
+    assert 'input_boolean.xcel_tou_provider_holiday' in rendered
     assert 'action: select.select_option' in rendered
+    assert 'action: input_boolean.turn_off' in rendered
+    assert 'id: "xcel_tou_reset_provider_holiday"' in rendered
+    assert 'at: "00:00:00"' in rendered
 
     for tariff in ("off_peak", "on_peak", "mid_peak"):
         assert f'- "{tariff}"' in rendered
@@ -54,7 +57,7 @@ def test_generator_allows_custom_namespace_and_cycle() -> None:
     assert "garage_rate_daily_energy:" in rendered
     assert 'select.garage_rate_daily_energy' in rendered
     assert 'sensor.garage_rate_current_period' in rendered
-    assert 'input_datetime.garage_rate_provider_holiday' in rendered
+    assert 'input_boolean.garage_rate_provider_holiday' in rendered
 
 
 def test_generator_rejects_cross_midnight_period_until_semantics_are_defined() -> None:

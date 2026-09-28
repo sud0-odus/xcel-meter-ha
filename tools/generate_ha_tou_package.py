@@ -77,8 +77,7 @@ def _render_period_state(profile: dict, *, holiday_entity: str | None) -> list[s
     ]
     if holiday_entity is not None:
         lines.append(
-            f"          {{% set holiday = states({_yaml_string(holiday_entity)}) == "
-            f"now().strftime('%Y-%m-%d') %}}"
+            f"          {{% set holiday = is_state({_yaml_string(holiday_entity)}, 'on') %}}"
         )
 
     for index, period in enumerate(explicit):
@@ -187,7 +186,7 @@ def render_package(
     period_entity = f"sensor.{period_key}"
     season_entity = f"sensor.{season_key}"
     holiday_key = f"{namespace}_provider_holiday"
-    holiday_entity = f"input_datetime.{holiday_key}" if needs_holiday_override else None
+    holiday_entity = f"input_boolean.{holiday_key}" if needs_holiday_override else None
     rate_unit = f"{profile['currency']}/{profile['unit']}"
 
     lines = [
@@ -213,11 +212,9 @@ def render_package(
         lines.extend(
             [
                 "",
-                "input_datetime:",
+                "input_boolean:",
                 f"  {holiday_key}:",
-                f"    name: {_yaml_string('Xcel TOU Provider Holiday')}",
-                "    has_date: true",
-                "    has_time: false",
+                f"    name: {_yaml_string('Xcel TOU Provider Holiday Today')}",
                 "    icon: mdi:calendar-alert",
             ]
         )
@@ -313,9 +310,24 @@ def render_package(
     if needs_holiday_override:
         lines.extend(
             [
+                f"  - id: {_yaml_string(f'{namespace}_reset_provider_holiday')}",
+                f"    alias: {_yaml_string('Xcel TOU - Reset Provider Holiday')}",
+                "    mode: single",
+                "    triggers:",
+                "      - trigger: time",
+                "        at: \"00:00:00\"",
+                "    conditions:",
+                "      - condition: state",
+                f"        entity_id: {_yaml_string(holiday_entity)}",
+                "        state: \"on\"",
+                "    actions:",
+                "      - action: input_boolean.turn_off",
+                "        target:",
+                f"          entity_id: {_yaml_string(holiday_entity)}",
+                "",
                 "# This profile excludes one or more provider-defined holidays from a TOU period.",
-                f"# Set {holiday_entity} to a provider-defined holiday date when needed.",
-                "# The override applies only when that saved date equals today.",
+                f"# Turn on {holiday_entity} only for a provider-defined holiday.",
+                "# A generated midnight automation turns the override back off for the next day.",
                 "# The profile currently stores holiday guidance as text, not a machine-readable calendar.",
                 "",
             ]

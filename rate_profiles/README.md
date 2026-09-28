@@ -88,7 +88,7 @@ The generator creates:
 - a current-season template sensor;
 - a current configured energy-rate sensor;
 - an automation that keeps the Utility Meter tariff selector synchronized;
-- a provider-holiday date helper when the profile marks a period with `exclude_holidays = true`.
+- a provider-holiday toggle with automatic midnight reset when the profile marks a period with `exclude_holidays = true`.
 
 The generator intentionally does **not** create a final-bill or monthly-cost sensor yet. Applying the current season's rate to an entire accumulated billing period can be wrong across seasonal/rate-effective boundaries, and riders/taxes/adjustments may be outside the profile.
 

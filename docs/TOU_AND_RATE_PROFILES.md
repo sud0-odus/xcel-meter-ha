@@ -99,7 +99,7 @@ The generated package contains:
 - **Xcel TOU Current Season**;
 - **Xcel TOU Current Rate** in `USD/kWh`;
 - an automation that synchronizes the Utility Meter tariff select entity to the computed period;
-- a persistent provider-holiday date helper when the profile excludes provider-defined holidays.
+- a provider-holiday toggle when the profile excludes provider-defined holidays, plus an automatic midnight reset.
 
 Home Assistant's Utility Meter integration creates a tariff selector when tariffs are configured; automations can change that selector with `select.select_option`. The generated package uses that native mechanism rather than implementing a second energy accumulator in this project.
 
@@ -107,9 +107,9 @@ The package evaluates times using Home Assistant's configured local timezone. Co
 
 ### Holiday handling is deliberately conservative
 
-The schema currently stores provider holiday rules as human-readable evidence. It does not yet define a machine-readable holiday calendar. If any period sets `exclude_holidays = true`, the generated package creates `input_datetime.xcel_tou_provider_holiday` (or the equivalent custom namespace). Set it to a provider-defined holiday date. The override applies only when that saved date equals today.
+The schema currently stores provider holiday rules as human-readable evidence. It does not yet define a machine-readable holiday calendar. If any period sets `exclude_holidays = true`, the generated package creates `input_boolean.xcel_tou_provider_holiday` (or the equivalent custom namespace). Turn it on only for a provider-defined holiday.
 
-Choosing the date is intentionally manual for now. Automatically substituting a generic US holiday calendar could be wrong when a tariff uses provider-specific holidays or observance rules. A date helper is safer than a persistent on/off switch because yesterday's holiday selection stops matching automatically after midnight.
+Choosing the holiday is intentionally manual for now. Automatically substituting a generic US holiday calendar could be wrong when a tariff uses provider-specific holidays or observance rules. The generated package resets the holiday toggle to off at midnight so a one-day override cannot silently carry into the next day.
 
 ### Why the first package does not calculate a monthly bill
 
@@ -157,7 +157,7 @@ Implemented as an opt-in package generator:
 - current period and season sensors;
 - current configured energy-rate sensor;
 - active-period automation using Home Assistant's tariff select entity;
-- explicit provider-holiday date helper when required by the profile.
+- explicit provider-holiday toggle with automatic midnight reset when required by the profile.
 
 The first implementation deliberately defers billing-period cost totals until seasonal/rate-effective boundaries can be modeled without re-pricing historical energy at today's rate. Profiles remain user-editable TOML and can be regenerated without changing the meter runtime.
 

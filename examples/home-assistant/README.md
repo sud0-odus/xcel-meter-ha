@@ -69,7 +69,7 @@ A default-namespace monthly package should create entities equivalent to:
 - `sensor.xcel_tou_current_rate`
 - `select.xcel_tou_monthly_energy`
 - one Utility Meter sensor for each tariff bucket
-- `input_datetime.xcel_tou_provider_holiday` when the profile has provider-defined holiday exclusions
+- `input_boolean.xcel_tou_provider_holiday` when the profile has provider-defined holiday exclusions
 
 Exact friendly names are shown in Home Assistant; entity IDs can change if there is an existing naming collision.
 
@@ -83,9 +83,9 @@ Check that:
 
 ## Holiday override
 
-If the profile marks a period with `exclude_holidays = true`, the generated package includes a provider-holiday date helper. Set it only to a date that the selected tariff actually treats as excluded. The override is active only when that saved date equals today, so it cannot be accidentally left on for the next day.
+If the profile marks a period with `exclude_holidays = true`, the generated package includes a **Provider Holiday Today** toggle. Turn it on only for a date that the selected tariff actually treats as a provider-defined holiday.
 
-Choosing the date is manual on purpose. The current profile schema does not yet encode enough provider-specific holiday/observance data to automate that safely.
+Choosing the holiday is manual on purpose. The current profile schema does not yet encode enough provider-specific holiday/observance data to automate that safely. A generated midnight automation turns the toggle back off so the override cannot silently carry into the next day.
 
 ## What this package does not claim
 
