@@ -8,7 +8,7 @@ arch:
 startup: application
 boot: manual
 init: false
-stage: experimental
+stage: stable
 services:
   - mqtt:want
 map:
