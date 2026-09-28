@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from dataclasses import dataclass
 
 from .discovery import (
@@ -17,6 +19,9 @@ from .models import (
     ReadingTypeInfo,
 )
 from .xmlutil import child_text, local_name, parse_xml
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 BASE_CORE_KINDS = {
