@@ -68,6 +68,32 @@ Use `billing_scope = "energy-only"` unless the profile explicitly models every c
 
 A profile therefore must never be presented as a guaranteed bill calculator.
 
+## Generate a Home Assistant TOU package
+
+Phase 2 includes a small standard-library generator that translates a validated profile into an opt-in Home Assistant package. It keeps the meter add-on rate-agnostic while making the profile immediately useful for tariff tracking.
+
+First find the actual Home Assistant entity ID for Xcel Meter HA **Energy Delivered**. Then run, for example:
+
+```bash
+python tools/generate_ha_tou_package.py \
+  rate_profiles/profiles/us-mn-xcel-a72-a74-2022.toml \
+  --source-entity sensor.your_energy_delivered_entity \
+  --output xcel_tou.yaml
+```
+
+The generator creates:
+
+- a Home Assistant Utility Meter with one bucket per profile period;
+- a current-period template sensor;
+- a current-season template sensor;
+- a current configured energy-rate sensor;
+- an automation that keeps the Utility Meter tariff selector synchronized;
+- a provider-holiday date helper when the profile marks a period with `exclude_holidays = true`.
+
+The generator intentionally does **not** create a final-bill or monthly-cost sensor yet. Applying the current season's rate to an entire accumulated billing period can be wrong across seasonal/rate-effective boundaries, and riders/taxes/adjustments may be outside the profile.
+
+See [`../docs/TOU_AND_RATE_PROFILES.md`](../docs/TOU_AND_RATE_PROFILES.md) and [`../examples/home-assistant/README.md`](../examples/home-assistant/README.md) for installation and validation.
+
 ## Contributing a new profile
 
 The easiest path is the repository's **Rate profile submission** GitHub issue form. Provide a public official rate-book/tariff URL when one exists.

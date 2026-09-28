@@ -37,7 +37,7 @@ The cumulative delivered-energy sensor can be used as a grid-import source in Ho
 | Installing for the first time | [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) |
 | Migrating from the older add-on | [`xcel-meter-diagnostic/DOCS.md`](xcel-meter-diagnostic/DOCS.md#existing-user-migration) |
 | Troubleshooting | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) and [`docs/SUPPORT.md`](docs/SUPPORT.md) |
-| Adding or using TOU/rate profiles | [`docs/TOU_AND_RATE_PROFILES.md`](docs/TOU_AND_RATE_PROFILES.md) and [`rate_profiles/README.md`](rate_profiles/README.md) |
+| Adding or using TOU/rate profiles | [`docs/TOU_AND_RATE_PROFILES.md`](docs/TOU_AND_RATE_PROFILES.md), [`rate_profiles/README.md`](rate_profiles/README.md), and the [opt-in HA package generator guide](examples/home-assistant/README.md) |
 | Reviewing architecture/data flow | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Testing with the Xcel SDK simulator | [`docs/TESTING_WITH_XCEL_SDK_SIMULATOR.md`](docs/TESTING_WITH_XCEL_SDK_SIMULATOR.md) |
 | Reviewing compatibility/evidence | [`docs/VALIDATION_0.4.5.md`](docs/VALIDATION_0.4.5.md) and [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) |

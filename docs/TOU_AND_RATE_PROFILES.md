@@ -79,19 +79,45 @@ They are **not** currently loaded by the add-on at runtime.
 
 A rate profile is useful even before native TOU support exists because it gives users a common description that can be translated into Home Assistant helpers and automations.
 
-## Suggested Home Assistant path
+## Home Assistant package generator
 
-The exact entity IDs vary by installation, so configure this through Home Assistant's UI where possible.
+Phase 2 now includes [`tools/generate_ha_tou_package.py`](../tools/generate_ha_tou_package.py). It converts a validated repository rate profile into an opt-in Home Assistant package while leaving the Xcel Meter HA add-on itself rate-agnostic.
 
-1. Go to **Settings -> Devices & services -> Helpers**.
-2. Create a **Utility Meter** helper.
-3. Use Xcel Meter HA **Energy Delivered** as the input sensor.
-4. Choose the cycle you want to track, for example monthly.
-5. Add the tariff names used by your plan, for example `on_peak`, `mid_peak`, and `off_peak`.
-6. Create an automation that changes the Utility Meter tariff select entity according to your plan's schedule.
-7. Optionally create Number helpers for the current rate of each tariff and Template sensors for estimated cost.
+Find the actual Home Assistant entity ID for Xcel Meter HA **Energy Delivered**, then generate a package:
 
-Do not use a rate profile as proof of the amount Xcel will bill. Fixed charges, riders, fuel adjustments, credits, taxes, demand charges, and other billing rules may not be represented.
+```bash
+python tools/generate_ha_tou_package.py \
+  rate_profiles/profiles/us-mn-xcel-a72-a74-2022.toml \
+  --source-entity sensor.your_energy_delivered_entity \
+  --output xcel_tou.yaml
+```
+
+The generated package contains:
+
+- a Home Assistant Utility Meter with tariff buckets matching the profile period names;
+- **Xcel TOU Current Period**;
+- **Xcel TOU Current Season**;
+- **Xcel TOU Current Rate** in `USD/kWh`;
+- an automation that synchronizes the Utility Meter tariff select entity to the computed period;
+- a persistent provider-holiday date helper when the profile excludes provider-defined holidays.
+
+Home Assistant's Utility Meter integration creates a tariff selector when tariffs are configured; automations can change that selector with `select.select_option`. The generated package uses that native mechanism rather than implementing a second energy accumulator in this project.
+
+The package evaluates times using Home Assistant's configured local timezone. Confirm that Home Assistant's timezone matches the profile `timezone` before relying on the schedule.
+
+### Holiday handling is deliberately conservative
+
+The schema currently stores provider holiday rules as human-readable evidence. It does not yet define a machine-readable holiday calendar. If any period sets `exclude_holidays = true`, the generated package creates `input_datetime.xcel_tou_provider_holiday` (or the equivalent custom namespace). Set it to a provider-defined holiday date. The override applies only when that saved date equals today.
+
+Choosing the date is intentionally manual for now. Automatically substituting a generic US holiday calendar could be wrong when a tariff uses provider-specific holidays or observance rules. A date helper is safer than a persistent on/off switch because yesterday's holiday selection stops matching automatically after midnight.
+
+### Why the first package does not calculate a monthly bill
+
+The generator exposes the **current configured energy rate** and accumulates usage into tariff buckets, but it intentionally stops short of a final monthly cost sensor. A naive `bucket kWh × current rate` calculation can become wrong when a billing period crosses a seasonal or rate-effective boundary. Fixed charges, riders, fuel adjustments, credits, demand charges, taxes, and other billing rules may also be outside the profile.
+
+Use the generated data for automation, visibility, and rate-period analysis. Treat any later cost calculation as an estimate until the project models those boundaries explicitly.
+
+See [`../examples/home-assistant/README.md`](../examples/home-assistant/README.md) for installation and a small HA-side validation checklist.
 
 ## Architecture direction
 
@@ -125,14 +151,15 @@ Current scope:
 
 ### Phase 2 - reusable Home Assistant recipe
 
-After the profile format receives real-world submissions, build a supported example package or generator that can translate a profile into:
+Implemented as an opt-in package generator:
 
-- tariff Utility Meter helpers;
-- rate Number helpers;
-- active-period automation;
-- estimated-cost sensors.
+- tariff Utility Meter buckets;
+- current period and season sensors;
+- current configured energy-rate sensor;
+- active-period automation using Home Assistant's tariff select entity;
+- explicit provider-holiday date helper when required by the profile.
 
-This should remain opt-in and user-editable.
+The first implementation deliberately defers billing-period cost totals until seasonal/rate-effective boundaries can be modeled without re-pricing historical energy at today's rate. Profiles remain user-editable TOML and can be regenerated without changing the meter runtime.
 
 ### Phase 3 - optional native rate adapter
 
