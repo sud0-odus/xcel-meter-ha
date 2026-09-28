@@ -1,0 +1,67 @@
+schema_version = 1
+profile_id = "us-mn-xcel-a72-a74-2022"
+provider = "Xcel Energy"
+operating_company = "Northern States Power Company - Minnesota"
+country = "US"
+state = "MN"
+service_region = "Minnesota residential Time of Use Pilot"
+rate_plan_name = "Residential Time of Use Pilot Program"
+rate_code = "A72/A74"
+timezone = "America/Chicago"
+currency = "USD"
+unit = "kWh"
+status = "historical-example"
+evidence_level = "official-publication"
+effective_from = "2022-01-01"
+effective_to = ""
+last_verified = "2026-09-28"
+billing_scope = "energy-only"
+notes = "Historical example retained to demonstrate the profile format. Do not assume these 2022 pilot rates apply to a current account. Bills were also subject to fuel clauses, riders, adjustments, surcharges, and other terms."
+
+[source]
+kind = "official-rate-book"
+url = "https://www.xcelenergy.com/staticfiles/xe-responsive/Company/Rates%20%26%20Regulations/Resource%20Plans/04%202024%20to%202040%20Upper%20Midwest%20IRP%20Appendix%20AA.pdf"
+reference = "Minnesota Electric Rate Book, MPUC No. 2, Rate Codes A72/A74, Section 5, Sheets 4.1-4.3"
+
+[[periods]]
+name = "off_peak"
+days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+start = "00:00"
+end = "06:00"
+exclude_holidays = false
+
+[[periods]]
+name = "on_peak"
+days = ["mon", "tue", "wed", "thu", "fri"]
+start = "15:00"
+end = "20:00"
+exclude_holidays = true
+holiday_note = "Official tariff excluded New Year's Day, Good Friday, Memorial Day, Independence Day, Labor Day, Thanksgiving Day, and Christmas Day, with provider-defined Friday/Monday observance when a holiday fell on a weekend."
+
+[[periods]]
+name = "mid_peak"
+days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+start = "00:00"
+end = "24:00"
+exclude_holidays = false
+fallback = true
+
+[[seasons]]
+name = "summer"
+start = "06-01"
+end = "09-30"
+
+[seasons.rates]
+on_peak = 0.22576
+mid_peak = 0.09013
+off_peak = 0.02784
+
+[[seasons]]
+name = "other_months"
+start = "10-01"
+end = "05-31"
+
+[seasons.rates]
+on_peak = 0.19266
+mid_peak = 0.07515
+off_peak = 0.02784

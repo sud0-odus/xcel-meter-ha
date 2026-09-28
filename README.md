@@ -36,7 +36,8 @@ The cumulative delivered-energy sensor can be used as a grid-import source in Ho
 |---|---|
 | Installing for the first time | [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) |
 | Migrating from the older add-on | [`xcel-meter-diagnostic/DOCS.md`](xcel-meter-diagnostic/DOCS.md#existing-user-migration) |
-| Troubleshooting | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) |
+| Troubleshooting | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) and [`docs/SUPPORT.md`](docs/SUPPORT.md) |
+| Adding or using TOU/rate profiles | [`docs/TOU_AND_RATE_PROFILES.md`](docs/TOU_AND_RATE_PROFILES.md) and [`rate_profiles/README.md`](rate_profiles/README.md) |
 | Reviewing architecture/data flow | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Testing with the Xcel SDK simulator | [`docs/TESTING_WITH_XCEL_SDK_SIMULATOR.md`](docs/TESTING_WITH_XCEL_SDK_SIMULATOR.md) |
 | Reviewing compatibility/evidence | [`docs/VALIDATION_0.4.5.md`](docs/VALIDATION_0.4.5.md) and [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) |
@@ -197,7 +198,9 @@ CI tests Python 3.12, 3.13, and 3.14 and verifies root/add-on source parity plus
 - Keep meter health separate from MQTT/Home Assistant transport health.
 - Keep meter interactions read-only.
 - Treat certificate renewal and physical meter replacement as explicit lifecycle events until Xcel documents otherwise.
+- Keep utility rate logic separate from meter acquisition; community rate profiles are advisory and source-linked.
+- Use the structured support/rate-profile issue forms so public reports arrive with useful evidence and redaction.
 
 ## Current direction
 
-After native onboarding is finalized, planned work includes meter-replacement/counter-reset safeguards, optional mDNS discovery if Xcel confirms the production contract, additional sanitized fixtures, optional advanced diagnostics, and interval history only after its support and semantics are demonstrated.
+After native onboarding is finalized, planned work includes meter-replacement/counter-reset safeguards, optional mDNS discovery if Xcel confirms the production contract, additional sanitized fixtures, optional advanced diagnostics, and interval history only after its support and semantics are demonstrated. Time-of-use work starts as a provider-neutral, community-maintained rate-profile catalog plus Home Assistant helper guidance; native billing/rate logic is intentionally deferred until that model is proven across service regions.

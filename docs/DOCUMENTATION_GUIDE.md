@@ -10,6 +10,8 @@ Keep these paths working:
 2. **Existing user:** README -> migration instructions -> restart verification -> old add-on removal.
 3. **Troubleshooter:** error/log message -> Troubleshooting -> safe next action without identity loss.
 4. **Developer/reviewer:** Architecture -> SDK alignment -> Compatibility -> Validation -> simulator procedure.
+5. **Support reporter:** Troubleshooting -> Support checklist -> structured GitHub issue.
+6. **Rate contributor:** TOU design -> rate-profile catalog -> rate-profile issue/pull request.
 
 ## Documentation gate for every meaningful change
 
@@ -22,6 +24,8 @@ Before merging a user-visible or protocol-visible change, ask:
 - Was new evidence recorded in `VALIDATION_0.4.5.md` and labeled by evidence type?
 - Did we add/close an upstream concern that belongs in `upstream-issue-review.md`?
 - Do Mermaid diagrams still represent the implementation rather than the intended future state?
+- Do support instructions still request the evidence needed without asking for secrets?
+- Did a rate-plan example change? Run `python tools/check_rate_profiles.py` and verify its source/effective date.
 
 ## Evidence labels
 
@@ -83,6 +87,7 @@ For a release candidate:
 [ ] Compatibility/validation evidence is current
 [ ] Upstream issue review date/statuses are current
 [ ] `python tools/check_docs.py` passes
+[ ] `python tools/check_rate_profiles.py` passes
 [ ] Mermaid blocks render on GitHub
 [ ] Screenshot redaction reviewed
 [ ] No private keys, credentials, production IPs, or account identifiers were added

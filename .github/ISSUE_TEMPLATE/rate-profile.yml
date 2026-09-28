@@ -1,0 +1,118 @@
+name: Rate profile submission
+description: Submit or correct an Xcel time-of-use rate plan for the community profile catalog.
+title: "[Rate profile] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Rate profiles are community-maintained examples, not guaranteed bill calculators.
+
+        Prefer a public Xcel/regulator tariff or rate-book URL. Do not upload an unredacted bill or portal screenshot.
+
+  - type: input
+    id: region
+    attributes:
+      label: State and service region
+      placeholder: Minnesota - Xcel electric service
+    validations:
+      required: true
+
+  - type: input
+    id: operating_company
+    attributes:
+      label: Operating company, if known
+      placeholder: Northern States Power Company - Minnesota
+
+  - type: input
+    id: plan
+    attributes:
+      label: Rate plan name and rate code
+      placeholder: Residential Time of Use - A72/A74
+    validations:
+      required: true
+
+  - type: input
+    id: timezone
+    attributes:
+      label: Timezone
+      placeholder: America/Chicago
+    validations:
+      required: true
+
+  - type: input
+    id: effective
+    attributes:
+      label: Effective date or date verified
+      placeholder: "2026-09-28"
+    validations:
+      required: true
+
+  - type: textarea
+    id: periods
+    attributes:
+      label: TOU periods and schedule
+      description: Include start/end times, weekday/weekend behavior, and holiday rules.
+      placeholder: |
+        Off-peak: 00:00-06:00 every day
+        On-peak: 15:00-20:00 weekdays except provider holidays
+        Mid-peak: all remaining hours
+    validations:
+      required: true
+
+  - type: textarea
+    id: seasons
+    attributes:
+      label: Seasons and rates
+      description: Give rates in dollars/kWh (or clearly state another unit) for each period and season.
+      placeholder: |
+        Summer (Jun-Sep): on_peak 0.00, mid_peak 0.00, off_peak 0.00
+        Other months: on_peak 0.00, mid_peak 0.00, off_peak 0.00
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: What do these values represent?
+      options:
+        - Base/energy charges only
+        - Energy charges including some riders or fuel adjustments
+        - All-in estimate
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: evidence
+    attributes:
+      label: Evidence type
+      options:
+        - Official Xcel public tariff/rate book
+        - Public regulator filing
+        - Xcel customer portal
+        - Utility bill
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: source_url
+    attributes:
+      label: Public source URL, if available
+      placeholder: https://www.xcelenergy.com/...
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes or special billing rules
+      description: Mention demand charges, critical-peak events, export compensation, monthly riders, or anything the initial profile schema may not capture.
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I removed account number, customer name/address, meter number, LFDIs, and credentials from anything I posted.
+          required: true
+        - label: I understand the profile will be treated as a community example unless independently verified.
+          required: true

@@ -1,0 +1,69 @@
+# Copy this file into rate_profiles/profiles/ and rename it.
+# This template is not loaded or validated as a real profile.
+
+schema_version = 1
+profile_id = "us-state-provider-rate-code-year"
+provider = "Xcel Energy"
+operating_company = ""
+country = "US"
+state = "XX"
+service_region = "Describe the service territory"
+rate_plan_name = "Rate plan name"
+rate_code = ""
+timezone = "America/Chicago"
+currency = "USD"
+unit = "kWh"
+status = "submitted"
+evidence_level = "community-submitted"
+effective_from = "YYYY-MM-DD"
+effective_to = ""
+last_verified = "YYYY-MM-DD"
+billing_scope = "energy-only"
+notes = "Verify this profile against your current Xcel tariff before using it for estimates."
+
+[source]
+kind = "official-rate-book"
+url = "https://example.com/rate-source"
+reference = "Document/page/rate-code details"
+
+[[periods]]
+name = "off_peak"
+days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+start = "00:00"
+end = "06:00"
+exclude_holidays = false
+
+[[periods]]
+name = "on_peak"
+days = ["mon", "tue", "wed", "thu", "fri"]
+start = "15:00"
+end = "20:00"
+exclude_holidays = true
+
+[[periods]]
+name = "mid_peak"
+days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+start = "00:00"
+end = "24:00"
+exclude_holidays = false
+fallback = true
+
+[[seasons]]
+name = "summer"
+start = "06-01"
+end = "09-30"
+
+[seasons.rates]
+on_peak = 0.00000
+mid_peak = 0.00000
+off_peak = 0.00000
+
+[[seasons]]
+name = "winter"
+start = "10-01"
+end = "05-31"
+
+[seasons.rates]
+on_peak = 0.00000
+mid_peak = 0.00000
+off_peak = 0.00000

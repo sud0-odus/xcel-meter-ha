@@ -96,7 +96,7 @@ App-owned identity/status files:
 
 ## When opening an issue
 
-Include:
+Use the structured checklist in [`SUPPORT.md`](SUPPORT.md) and the repository support issue form. At minimum include:
 
 - Xcel Meter HA version;
 - Home Assistant version/platform;

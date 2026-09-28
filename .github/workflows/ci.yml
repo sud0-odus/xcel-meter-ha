@@ -27,10 +27,13 @@ jobs:
         run: ruff --version
 
       - name: Lint
-        run: ruff check src tests tools/check_docs.py xcel-meter-diagnostic/src
+        run: ruff check src tests tools/check_docs.py tools/check_rate_profiles.py xcel-meter-diagnostic/src
 
       - name: Validate documentation links and fences
         run: python tools/check_docs.py
+
+      - name: Validate community rate profiles
+        run: python tools/check_rate_profiles.py
 
       - name: Parse PowerShell simulator tooling
         shell: pwsh
