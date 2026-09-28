@@ -102,7 +102,7 @@ The cloud SDK is useful as an MQTT publishing reference, but Home Assistant alre
 
 ### Simulator feature branch is not treated as a secure production profile as-is
 
-The supplied feature branch is useful for development, but its Docker compose selects `LinuxSwagger`, a mode the SDK documentation describes as disabling certificate authentication. It is therefore suitable for API/resource exploration but not by itself an authoritative mutual-TLS validation harness. A secure simulator profile should be used before claiming simulator-based identity authentication coverage.
+The supplied feature branch is useful for development, but its Docker compose selects `LinuxSwagger`, a mode the SDK documentation describes as disabling certificate authentication. It is therefore suitable for API/resource exploration but not by itself an authoritative mutual-TLS validation harness. 0.4.5b2 now includes and has exercised a secure `Production`-mode simulator path before claiming simulator-based identity authentication coverage.
 
 ## Questions still worth asking Xcel / Itron
 
@@ -117,16 +117,31 @@ The SDK answered the basic certificate profile, LFDI derivation, supported Readi
 7. **Version metadata:** Should `softwareVersion` be considered optional in production, with ReadingType metadata treated as the compatibility authority when absent?
 8. **SDK baseline:** Which branch/tag/release should third-party developers treat as the currently supported reference, especially for the Meter Agent Simulator?
 
-## 0.4.5b2 validation targets
+## 0.4.5b2 validation status
 
-Before promoting 0.4.5 to a final release:
+Completed on production hardware:
 
-- upgrade from a working legacy identity and confirm the migrated app-owned identity has the exact same LFDI;
-- confirm the migrated identity authenticates to the production meter;
-- restart Home Assistant/app and prove the app-owned identity is reused;
-- only after that, remove/disable the legacy add-on and prove operation continues;
-- separately exercise a newly generated identity through Launchpad enrollment when convenient, without risking the currently provisioned production identity;
-- retain all 0.4.4 meter/MQTT outage and freshness behavior.
+- migrated a working legacy identity and verified the app-owned copy retained the exact LFDI;
+- authenticated the migrated identity to the production meter;
+- restarted the app and verified the app-owned identity was reused;
+- removed the legacy add-on and verified standalone production operation;
+- retained the 0.4.4 meter/MQTT outage and freshness behavior.
+
+Completed with the secure Xcel SDK simulator:
+
+- generated disposable native identities and verified certificate/LFDI profile;
+- rejected an unregistered LFDI, then accepted the exact same identity after ACL registration;
+- validated Agent v1 and v3 secure discovery/read;
+- exercised multi-page MeterReading discovery;
+- exercised pending -> active -> revoked/error -> restored onboarding history;
+- confirmed server-certificate-derived LFDI matched `/sdev/sdi` in the simulator;
+- confirmed an advertised v3 interval resource can have an empty ReadingList.
+
+Still intentionally not forced on the production account:
+
+- replacing the already provisioned production identity solely to test a brand-new real Launchpad enrollment.
+
+That remaining real-world onboarding step should be done only when there is a deliberate lifecycle reason or a safe separate meter/account path. The secure simulator already covers the client-side state machine without risking the working production identity.
 
 ## 0.4.5b2 simulator/authentication findings
 

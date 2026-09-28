@@ -1,490 +1,226 @@
-# Upstream Issue Review
+# Upstream Project and Issue Review
 
-Last reviewed: 2026-09-27
+Last reviewed: 2026-09-28
 
-This document records issues, implementation lessons, and compatibility
-concerns discovered while reviewing the projects that preceded
-`xcel-meter-ha`.
+This document records lessons from public Xcel/Itron community projects and checks their currently open issues against Xcel Meter HA. The goal is to reuse good ideas without inheriting assumptions that conflict with current production-meter evidence, Xcel's SDK, or this project's identity/data-integrity rules.
 
-The goal is not to copy upstream behavior blindly. Instead, each issue is
-evaluated against:
+## Projects reviewed
 
-- behavior observed on a real Xcel Energy / Itron meter;
-- the current `xcel-meter-ha` architecture;
-- Home Assistant requirements;
-- data provenance and identity safety;
-- whether the upstream workaround is appropriate for this project.
+| Project | What is useful here | Current open issues reviewed |
+|---|---|---|
+| [brianthedavis/xcel-prometheus-monitor](https://github.com/brianthedavis/xcel-prometheus-monitor) | Clear data-flow diagrams; separation of meter acquisition from Prometheus/Grafana analytics; Launchpad/network setup notes | 0 |
+| [ErikElkins/xcel-ha-monitoring](https://github.com/ErikElkins/xcel-ha-monitoring) | User-oriented Launchpad walkthrough; Home Assistant Energy dashboard examples; visual setup style | 0 |
+| [tvories/hass_xcel_itron](https://github.com/tvories/hass_xcel_itron) | Very simple Home Assistant-first installation concept | 0 |
+| [zaknye/xcel_itron2mqtt](https://github.com/zaknye/xcel_itron2mqtt) | Durable certificate/LFDI workflow; Python/MQTT foundation; operational history | 1 - #47 |
+| [wingrunr21/hassio-xcel-itron-mqtt](https://github.com/wingrunr21/hassio-xcel-itron-mqtt) | Home Assistant repository/install experience; Supervisor MQTT integration; operational issue history | 3 - #28, #39, #41 |
 
-## Upstream projects reviewed
+Xcel Meter HA does not simply wrap these projects. It contains its own identity lifecycle, IEEE 2030.5 transport/discovery/classification, freshness, caching, MQTT runtime, and Home Assistant behavior.
 
-- wingrunr21/hassio-xcel-itron-mqtt
-  https://github.com/wingrunr21/hassio-xcel-itron-mqtt
+## What we intentionally borrow
 
-- zaknye/xcel_itron2mqtt
-  https://github.com/zaknye/xcel_itron2mqtt
+### User experience
 
-These projects were important references for this implementation, but
-`xcel-meter-ha` contains its own IEEE 2030.5 protocol, discovery, retry,
-caching, MQTT, and Home Assistant logic.
+From the Home Assistant-oriented projects:
+
+- one-click My Home Assistant repository-add link;
+- a short installation path before deep technical details;
+- Launchpad enrollment described as a distinct prerequisite;
+- stable/DHCP-reserved meter IP guidance;
+- Energy dashboard examples after basic meter communication works.
+
+### Network/data-flow documentation
+
+From `xcel-prometheus-monitor`:
+
+- Mermaid-style diagrams showing each system boundary;
+- keeping meter acquisition separate from optional downstream analytics;
+- treating solar/inverter data as a separate source that can later be combined in a visualization layer.
+
+### Durable identity
+
+From `xcel_itron2mqtt` and the official SDK:
+
+- generate once and reuse certificate/key;
+- derive/display LFDI from the actual certificate;
+- do not treat identity as disposable cache.
+
+Xcel Meter HA extends this with app-owned migration, expected-LFDI checking, identity history, first-time provisioning state, and explicit regeneration protection.
+
+## What we do not copy
+
+- Old `curl | bash` certificate-generation instructions for end users. Xcel Meter HA now creates/persists the identity itself.
+- Polling every five seconds as a default. Xcel Meter HA currently defaults to a more conservative 60-second poll interval based on production behavior and reliability goals.
+- Firmware-number-only endpoint routing. Xcel Meter HA discovers resources and classifies ReadingTypes instead.
+- Generic certificate deletion/regeneration as troubleshooting.
+- A custom-integration/HACS architecture solely because another project uses it; this project currently uses a Home Assistant app/add-on plus MQTT so meter transport remains isolated and MQTT discovery works cleanly.
+- Prometheus/Grafana as a required stack. They are valid optional consumers, not part of the meter transport core.
 
 ## Status terminology
 
 | Status | Meaning |
 |---|---|
-| COVERED | Current implementation already addresses the concern. |
-| PARTIAL | Some protections exist, but additional work is justified. |
-| PLANNED | The upstream report identifies useful work we intend to add. |
-| INVESTIGATE | More real-meter or protocol evidence is required first. |
-| NOT ADOPTED | The upstream workaround conflicts with this project's design or trust model. |
-| REVERIFY | The upstream report was noted during review but its details should be rechecked before implementation. |
+| COVERED | Current implementation directly addresses the concern. |
+| PARTIAL | Relevant protections exist, but more evidence/work remains. |
+| INVESTIGATE | The report is useful but needs stronger protocol/real-meter evidence. |
+| NOT ADOPTED | The suggested behavior conflicts with this project's design/evidence. |
 
-## Issue review
+## Open issue review
+
+### zaknye/xcel_itron2mqtt #47 - Frequent `ReadTimeout` warnings during polling
+
+Source: https://github.com/zaknye/xcel_itron2mqtt/issues/47
+
+Status: **COVERED / CONTINUE TO OBSERVE**
+
+The issue reports frequent read timeouts while data still flows, with occasional TLS `BAD_SIGNATURE` behavior under a five-second polling setup.
+
+Relevant Xcel Meter HA protections:
+
+- serialized polling;
+- 60-second default poll interval;
+- conservative retry handling for observed transient TLS failures;
+- fresh TLS/request behavior compatible with the production meter;
+- cached core-reading paths to avoid rediscovery load on every poll;
+- transient transport failure does not invalidate the cached profile;
+- only clear resource-layout signals such as HTTP `404`/`410` invalidate discovered paths;
+- meter failure is kept separate from MQTT publication failure.
+
+This issue remains worth watching because it confirms that intermittent meter response behavior is not unique to one installation. It does not justify increasing concurrency or regenerating identity.
 
 ### wingrunr21 #28 - Read timed out
 
-Source:
+Source: https://github.com/wingrunr21/hassio-xcel-itron-mqtt/issues/28
 
-https://github.com/wingrunr21/hassio-xcel-itron-mqtt/issues/28
+Status: **COVERED / CONTINUE TO OBSERVE**
 
-Status: PARTIAL
+Xcel Meter HA has independently observed transient TLS/transport failures and is designed around conservative retries, configurable timeout, serialized polling, and cached profiles. A timeout after a previously healthy connection is treated as a transport problem, not an identity-loss event.
 
-Upstream concern:
-
-Users have reported meter HTTP/TLS requests timing out even after the
-meter has been successfully enrolled and is reachable.
-
-Relevant behavior observed during `xcel-meter-ha` development:
-
-- TLS `BAD_SIGNATURE` was observed transiently.
-- A TLS handshake timeout was observed during full MeterReading discovery.
-- A later retry succeeded without changing the certificate or meter.
-- Normal cached polling is dramatically lighter than full discovery.
-
-Current protection:
-
-- one retry for transient `BAD_SIGNATURE`;
-- one retry for the observed TLS handshake timeout;
-- configurable request timeout;
-- serialized polling;
-- 60 second default polling;
-- cached meter profile dramatically reduces routine requests.
-
-Remaining work:
-
-1. Classify ordinary response/read timeouts separately from permanent
-   connection failures.
-2. Consider one conservative retry for a normal response timeout.
-3. Record retry reason and failure counts for Home Assistant diagnostics.
-4. Avoid causing additional meter load while recovering.
-
-Design rule:
-
-Transient communication failures must never trigger certificate regeneration.
-
----
+Future diagnostics may expose failure/retry counters, but the core safety behavior is already present.
 
 ### wingrunr21 #39 - Showing Demand during Power Outage
 
-Source:
+Source: https://github.com/wingrunr21/hassio-xcel-itron-mqtt/issues/39
 
-https://github.com/wingrunr21/hassio-xcel-itron-mqtt/issues/39
+Status: **COVERED FOR STALENESS; REAL OUTAGE SEMANTICS STILL INVESTIGATE**
 
-Status: PLANNED / INVESTIGATE
+This upstream report was one of the reasons Xcel Meter HA added source-sample freshness protection.
 
-Upstream concern:
+Implemented/validated behavior:
 
-A user reported Instantaneous Demand continuing to show a nearly constant
-positive value during a utility outage.
+- parse meter `timePeriod.start` and `duration` when present;
+- calculate freshness from measurement interval end;
+- reject stale current-power samples as current data;
+- never fabricate `0 W` merely because communication/data is stale;
+- preserve compatibility when timestamp metadata is absent;
+- production meter provided real one-second timestamp metadata during validation.
 
-We should not assume that this means the correct value is zero.
+What remains unknown is the exact measurement semantics of every meter/firmware during a real utility outage. The project therefore solves the stale-data problem without claiming that every non-zero outage reading is necessarily wrong.
 
-Possible explanations include:
+### wingrunr21 #41 - Itron firmware 3.2.50
 
-- an old/stale reading still being served;
-- meter-side semantics during an outage;
-- meter power supplied independently of grid service;
-- interaction with batteries or distributed generation;
-- another IEEE 2030.5 behavior not yet characterized.
+Source: https://github.com/wingrunr21/hassio-xcel-itron-mqtt/issues/41
 
-Planned approach:
+Status: **COVERED BY DYNAMIC DISCOVERY + SDK/SIMULATOR; SPECIFIC FIELD FIRMWARE STILL UNVERIFIED**
 
-1. Inspect the real Instantaneous Demand XML for meter-provided timestamp
-   information.
-2. Capture the source measurement timestamp when available.
-3. Add diagnostics such as:
-   - Meter Sample Time
-   - Meter Sample Age
-   - Reading Stale
-4. Keep Last Successful Poll separate from Meter Sample Time.
-
-Important distinction:
-
-A successful network request proves that communication is current.
-
-It does NOT prove that the measurement returned by the meter is current.
-
-We should never silently replace a meter-reported power value with zero
-without authoritative evidence.
-
----
-
-### wingrunr21 #41 - Itron firmware 3.2.50 support
-
-Source:
-
-https://github.com/wingrunr21/hassio-xcel-itron-mqtt/issues/41
-
-Status: COVERED BY ARCHITECTURE / TESTS PLANNED
-
-Upstream concern:
-
-Firmware 3.2.50 required changes to the underlying meter implementation and
-endpoint handling.
-
-Current `xcel-meter-ha` design intentionally avoids making firmware version
-the primary routing mechanism.
-
-Current discovery flow:
-
-Meter
-  -> Device Information
-  -> active electricity UsagePoint
-  -> MeterReadingListLink
-  -> advertised MeterReading resources
-  -> ReadingType resources
-  -> classify available readings
-
-This has already allowed a real meter to work even though the meter does not
-expose a usable softwareVersion.
+Xcel Meter HA does not depend on a single firmware-number path map.
 
 Current behavior:
 
-- missing softwareVersion becomes `unknown`;
-- it is never silently treated as firmware 2.x;
-- ReadingType evidence is used to identify supported readings.
+- discover active electricity UsagePoint;
+- page advertised MeterReading resources;
+- inspect ReadingType signatures;
+- classify SDK-aligned v1/v2-compatible and v3 readings;
+- leave software/agent version `unknown` when the meter does not report it authoritatively.
 
-Remaining work:
+The secure Xcel simulator has passed both Agent v1 and v3 discovery/read and live paging. That is stronger compatibility evidence than a hard-coded firmware switch, but it is not the same as physically testing every deployed firmware including 3.2.50.
 
-Add regression fixtures representing known firmware layouts, including:
-
-- 2.x style ReadingTypes;
-- current real-meter / unknown-version behavior;
-- 3.2.50 style resources.
-
-Suggested compatibility table:
-
-| Meter profile | Test status |
-|---|---|
-| Real meter, version unavailable | Real-hardware validated |
-| Agent 2.x ReadingType pattern | Fixture tested |
-| Agent 3.x ReadingType pattern | Fixture tested |
-| Firmware 3.2.50 layout | Planned fixture |
-| Unknown future firmware | Dynamic discovery fallback |
-
----
+## Previously relevant closed/operational concern
 
 ### wingrunr21 #36 - Supervisor MQTT service unavailable
 
-Source:
+Status: **COVERED**
 
-https://github.com/wingrunr21/hassio-xcel-itron-mqtt/issues/36
+Xcel Meter HA validates MQTT service information, separates MQTT from meter health, keeps meter polling alive when the broker is unavailable, and was production-tested through a Mosquitto stop/start cycle. Broker recovery succeeded without restarting the app.
 
-Status: COVERED
+## Architecture comparison
 
-Upstream concern:
+```mermaid
+flowchart TD
+    Meter["Xcel / Itron meter"] --> Core["Xcel Meter HA\nidentity + IEEE 2030.5 + discovery + freshness"]
+    Core --> MQTT["MQTT"]
+    MQTT --> HA["Home Assistant"]
+    MQTT -. "optional downstream bridge" .-> Prom["Prometheus / other analytics"]
+    Solar["Solar inverter integration"] --> HA
 
-When the Home Assistant Supervisor MQTT service was unavailable, an empty
-MQTT host reached the MQTT library and caused the add-on to crash with an
-invalid-host error.
+    Legacy["Earlier community projects"] -. "ideas / operational evidence" .-> Core
+    SDK["Xcel SDK + secure simulator"] -. "protocol reference / validation" .-> Core
+```
 
-Current `xcel-meter-ha` behavior:
+The design goal is not to be different for its own sake. It is to put each concern in the layer where it can be validated and supported safely.
 
-- Supervisor MQTT service information is validated before use;
-- an empty or unavailable broker is rejected explicitly;
-- MQTT initialization failure does not invalidate meter communication;
-- MQTT publishing is isolated from meter polling;
-- MQTT is opt-in during the early 0.4.x rollout.
+## Review cadence
 
-Future enhancement:
+Before a release candidate or major compatibility change:
 
-Support an optional manually configured external MQTT broker when Supervisor
-MQTT is unavailable.
+1. Recheck open issues in all five projects above.
+2. Record any new issue that could change identity, TLS, discovery, freshness, MQTT, firmware compatibility, or onboarding behavior.
+3. Prefer reproducing the concern in an automated fixture, secure SDK simulator, or real meter before changing core behavior.
+4. Update this document with the evidence level and decision.
 
-Preferred future order:
+## Cross-project engineering lessons
 
-1. Home Assistant Supervisor MQTT service
-2. explicitly configured external MQTT broker
-3. MQTT disabled with clear diagnostics
+### Polling and meter load
 
----
+The earlier ecosystem shows why aggressive polling is not automatically better. The production meter used by Xcel Meter HA advertises many MeterReading resources, and full discovery is much heavier than polling a small cached core profile.
 
-### zaknye - repeated timeout / BAD_SIGNATURE behavior
+Current approach:
 
-Source repository:
+```text
+startup / profile invalid
+  -> discover UsagePoint
+  -> page MeterReadings
+  -> inspect ReadingTypes
+  -> cache core paths
 
-https://github.com/zaknye/xcel_itron2mqtt/issues
+normal poll
+  -> read cached core paths only
+```
 
-Status: REVERIFY / PARTIAL
+This reduces TLS handshakes, meter load, and the opportunity for transient failures while still permitting rediscovery when a resource genuinely disappears.
 
-A previously reviewed upstream report described frequent meter request
-timeouts together with occasional TLS `BAD_SIGNATURE` errors while useful
-meter data could still be retrieved.
+### Data provenance
 
-The exact upstream issue details should be re-verified before using them as
-the basis for a specific compatibility claim.
+Use this preference order throughout user-facing behavior:
 
-The general failure pattern is independently relevant because
-`xcel-meter-ha` has observed both:
+1. meter-reported facts;
+2. utility-provided facts;
+3. locally observed/derived values.
 
-- transient `BAD_SIGNATURE`;
-- transient TLS handshake timeout.
+Examples of meter facts are instantaneous demand and cumulative delivered/received energy. Examples of local observations are last successful poll, transport error, sample age, or MQTT availability. Tariff estimates, net calculations not directly supplied by the meter, and other analytics must be labeled as derived rather than presented as utility facts.
 
-Current protection:
+### Optional analytics are downstream
 
-- one retry for `BAD_SIGNATURE`;
-- one retry for the observed handshake timeout;
-- cached core-reading paths;
-- 60 second default poll interval.
+Prometheus, Grafana, tariff calculators, solar APIs, and other analytics can be valuable without becoming part of the IEEE 2030.5 transport core. Keeping the core output clean makes those integrations easier to add later and easier to remove without risking meter connectivity.
 
-Important remaining improvement:
+## Backlog influenced by upstream review
 
-The current runtime clears the cached MeterProfile after a failed poll.
+High-value follow-up work that remains compatible with current evidence:
 
-That is appropriate if the layout is actually invalid, but undesirable for a
-single transient communication failure because the next cycle performs a full
-rediscovery and places more load on the meter.
-
-Planned improvement:
-
-Differentiate transient transport failure from profile/layout failure.
-
-Suggested behavior:
-
-Transient transport failure
-  -> retry request once
-  -> if still unsuccessful, mark current poll failed
-  -> publish unavailable/offline if appropriate
-  -> KEEP cached MeterProfile
-  -> retry the same three known endpoints next cycle
-
-Profile/layout failure
-  -> invalidate cached MeterProfile
-  -> rediscover UsagePoint and MeterReadings next cycle
-
-Possible reasons to invalidate the profile:
-
-- expected endpoint returns HTTP 404 or equivalent;
-- ReadingType/resource has disappeared;
-- UsagePoint is no longer available;
-- repeated failures exceed a conservative threshold;
-- explicit meter restart/layout-change evidence exists.
-
----
-
-## Certificate identity lessons
-
-Status: COVERED / INTENTIONAL DESIGN DIFFERENCE
-
-Some predecessor troubleshooting guidance has treated deletion and
-regeneration of certificate files as a recovery step.
-
-`xcel-meter-ha` deliberately does not use that model once an identity has
-been provisioned with Xcel Launchpad.
-
-Project rule:
-
-A provisioned client certificate is identity, not disposable configuration.
-
-Current behavior:
-
-- derive the client LFDI from the actual certificate;
-- validate certificate/key match;
-- validate IEEE 2030.5 certificate policy;
-- validate EC P-256 curve;
-- validate digital-signature usage;
-- compare certificate-derived LFDI to the configured/Launchpad LFDI;
-- warn before expiration;
-- never silently regenerate identity.
-
-If identity does not match Launchpad, the correct action is to determine
-which identity should be provisioned or restored.
-
-Generating a new certificate creates a new identity and therefore requires
-new Launchpad provisioning.
-
----
-
-## MQTT architecture lessons
-
-Status: MOSTLY COVERED
-
-Current implementation already provides:
-
-- Supervisor MQTT service discovery;
-- validated broker configuration;
-- one MQTT device representing the physical meter;
-- Home Assistant device discovery;
-- retained discovery;
-- retained state;
-- retained availability;
-- Last Will offline availability;
-- MQTT failures isolated from IEEE 2030.5 meter polling.
-
-Planned:
-
-- optional external/manual MQTT broker;
-- expose MQTT connection health as a diagnostic entity;
-- expose last MQTT publish time;
-- expose MQTT reconnect/failure count.
-
----
-
-## Polling and meter-load lessons
-
-Status: COVERED / CONTINUE MONITORING
-
-Initial implementation performed full meter discovery every poll.
-
-Real-hardware timing showed that full discovery could take roughly 10-20
-seconds because every advertised ReadingType required another TLS request.
-
-The meter advertises 22 MeterReading resources.
-
-Current optimized behavior:
-
-Startup
-  -> discover meter layout
-  -> identify three validated core reading paths
-  -> cache MeterProfile
-
-Routine poll
-  -> Instantaneous Demand
-  -> Current Summation Delivered
-  -> Current Summation Received
-
-Observed cached polling completes much faster than initial discovery.
-
-This reduces:
-
-- TLS handshakes;
-- load on the Itron meter;
-- probability of transient failures;
-- latency before MQTT publication.
-
----
-
-## Data provenance rules
-
-Upstream issue review reinforces the project's existing data trust model.
-
-Preferred order:
-
-1. Meter-reported facts
-2. Utility-provided facts
-3. Locally derived values
-
-Examples:
-
-Meter-reported:
-- Instantaneous Demand
-- Current Summation Delivered
-- Current Summation Received
-- meter LFDI
-
-Locally observed:
-- Last Successful Read
-- poll duration
-- connection health
-- retry count
-
-Derived:
-- rate calculations
-- bill estimates
-- stale-reading flags
-- net calculations when not directly supplied
-
-Derived or locally observed values must never be presented as though the
-meter itself reported them.
-
----
-
-## Prioritized engineering backlog from upstream review
-
-### P1 - transient communication resilience
-
-- distinguish transport failures from meter-profile failures;
-- preserve cached MeterProfile after isolated transient failures;
-- add ordinary read-timeout handling;
-- expose consecutive failure count;
-- expose last meter error;
-- expose last retry reason;
-- expose poll duration.
-
-### P1 - measurement freshness
-
-- inspect real Reading XML for source timestamps;
-- parse source timestamp when present;
-- expose Meter Sample Time;
-- expose Meter Sample Age;
-- expose Reading Stale;
-- document outage behavior.
-
-### P2 - firmware compatibility
-
-- add 3.2.50 fixture;
-- maintain 2.x fixture;
-- maintain 3.x fixture;
-- maintain real-meter/unknown-version fixture;
-- document compatibility based on evidence rather than assumptions.
-
-### P2 - MQTT resilience
-
-- optional external broker configuration;
-- MQTT connection diagnostic;
-- last MQTT publish diagnostic;
-- MQTT failure/reconnect counters.
-
-### P3 - expanded readings
-
-Only after reliability/freshness work is stable:
-
-- TOU Wh Delivered / Received;
-- interval Wh Delivered / Received / Net;
-- Maximum Demand;
-- Power Factor;
-- VAh;
-- VARh.
-
----
+- add more sanitized firmware/resource fixtures as real examples become available;
+- expose carefully chosen retry/failure diagnostics without cluttering the default HA device;
+- define meter-replacement and cumulative-counter-reset behavior;
+- add optional mDNS discovery only if Xcel confirms the production contract;
+- consider optional Prometheus/exporter documentation as a downstream integration, not a required service;
+- add interval history only after non-empty samples and semantics are proven;
+- keep tariffs/rates separate from the meter transport layer.
 
 ## Issues we should not solve by guessing
 
-The following should require protocol evidence or real-meter validation before
-production behavior is changed:
+Do not change production behavior merely to satisfy an unverified hypothesis. In particular:
 
-- forcing Instantaneous Demand to zero during an outage;
-- assuming meter firmware based on missing softwareVersion;
-- regenerating a certificate after TLS authentication failure;
-- treating all timeouts as evidence that meter discovery is invalid;
-- inferring unsupported meter readings only from their descriptions.
-
----
-
-## Review process
-
-Periodically review both upstream issue trackers for newly discovered meter
-behavior:
-
-https://github.com/wingrunr21/hassio-xcel-itron-mqtt/issues?q=is%3Aissue
-
-https://github.com/zaknye/xcel_itron2mqtt/issues?q=is%3Aissue
-
-For each useful report:
-
-1. record the upstream issue;
-2. determine whether it reproduces against current architecture;
-3. distinguish confirmed behavior from speculation;
-4. add a fixture or regression test when possible;
-5. update this document with COVERED, PARTIAL, PLANNED, INVESTIGATE,
-   NOT ADOPTED, or REVERIFY;
-6. only change production behavior when supported by evidence.
+- do not force Instantaneous Demand to `0 W` during an outage;
+- do not guess firmware when `softwareVersion` is missing;
+- do not regenerate a certificate after TLS/authentication failure;
+- do not treat every timeout as evidence that meter discovery is invalid;
+- do not expose a reading based only on a description when ReadingType evidence disagrees;
+- do not claim interval history because a ReadingSet link exists.

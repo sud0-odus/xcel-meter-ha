@@ -18,7 +18,7 @@ def _snapshot() -> MeterSnapshot:
         usage_point_href="/upt/1",
         meter_reading_list_href="/upt/1/mr",
         meter_lfdi=(
-            "5BA70BD0DBA11778EA0773AAAB7FF2A95AA7D00F"
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         ),
         instantaneous_power_w=1863.0,
         energy_delivered_wh=40817686.0,
@@ -30,7 +30,7 @@ def _snapshot() -> MeterSnapshot:
 def _certificate_info():
     return SimpleNamespace(
         lfdi=(
-            "65C05CAD1B2AA01D1AE323D973B65AED20CD2403"
+            "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
         ),
         not_after=datetime(
             2029,
@@ -49,7 +49,7 @@ def test_meter_identifier_prefers_meter_lfdi():
     snapshot = _snapshot()
 
     assert meter_identifier(snapshot) == (
-        "5ba70bd0dba11778ea0773aaab7ff2a95aa7d00f"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     )
 
 
@@ -193,12 +193,12 @@ def test_state_payload_includes_certificate_diagnostics():
         "energy_delivered_wh": 40817686.0,
         "energy_received_wh": 0.0,
         "meter_lfdi": (
-            "5BA70-BD0DB-A1177-8EA07-73AAA-B7FF2-A95AA-7D00F"
+            "AAAAA-AAAAA-AAAAA-AAAAA-AAAAA-AAAAA-AAAAA-AAAAA"
         ),
         "agent_version": "unknown",
         "meter_software_version": "unknown",
         "client_lfdi": (
-            "65C05-CAD1B-2AA01-D1AE3-23D97-3B65A-ED20C-D2403"
+            "BBBBB-BBBBB-BBBBB-BBBBB-BBBBB-BBBBB-BBBBB-BBBBB"
         ),
         "certificate_expiration": (
             "2029-09-25T01:34:47+00:00"

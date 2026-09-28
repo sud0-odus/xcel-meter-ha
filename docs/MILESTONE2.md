@@ -1,5 +1,8 @@
 # Milestone 2: live meter discovery and core readings
 
+> **Historical milestone document.** This file records an earlier implementation stage and is retained for project history. For current installation and behavior, use the root `README.md`, `docs/GETTING_STARTED.md`, and `docs/VALIDATION_0.4.5.md`.
+
+
 This milestone moves beyond TLS diagnostics and implements the minimum useful vertical slice
 against the Xcel Energy Launchpad / Itron IEEE 2030.5 interface.
 
@@ -27,10 +30,10 @@ Use a COPY of your existing cert/key directory. Never regenerate a working ident
 
 ```bash
 xcel-meter read \
-  --host 192.168.1.122 \
+  --host 192.0.2.10 \
   --port 8081 \
   --dir ./certs \
-  --expected-lfdi 65C05-CAD1B-2AA01-D1AE3-23D97-3B65A-ED20C-D2403 \
+  --expected-lfdi YOUR_REGISTERED_CLIENT_LFDI \
   --pretty
 ```
 

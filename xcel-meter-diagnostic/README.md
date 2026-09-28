@@ -1,7 +1,9 @@
 # Xcel Meter HA
 
-Home Assistant app for local Xcel Energy / Itron IEEE 2030.5 meter readings.
+Local-first Home Assistant app for Xcel Energy / Itron IEEE 2030.5 smart-meter readings.
 
-0.4.5b2 adds SDK-aligned native identity generation, safe legacy identity migration into app-owned storage, full documented ReadingType discovery signatures, and Itron list paging while preserving the real-hardware freshness and MQTT resilience validated in 0.4.4.
+For a new install, follow [`../docs/GETTING_STARTED.md`](../docs/GETTING_STARTED.md).
 
-See `DOCS.md` before upgrading/removing the legacy add-on.
+If you already use the older Xcel iTron MQTT add-on, read [`DOCS.md`](DOCS.md#existing-user-migration) before removing it so the provisioned Launchpad identity is migrated safely.
+
+0.4.5b2 includes native durable identity generation, safe legacy identity migration, SDK-aligned ReadingType discovery/paging, source freshness protection, secure Xcel SDK simulator validation, and MQTT/meter failure isolation.

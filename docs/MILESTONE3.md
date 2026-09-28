@@ -1,5 +1,8 @@
 # Milestone 3: Home Assistant-native validation
 
+> **Historical milestone document.** This file records an earlier implementation stage and is retained for project history. For current installation and behavior, use the root `README.md`, `docs/GETTING_STARTED.md`, and `docs/VALIDATION_0.4.5.md`.
+
+
 ## Goal
 
 Validate the maintained IEEE 2030.5 client in the environment where it will actually run: Home

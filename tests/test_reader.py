@@ -22,7 +22,7 @@ def test_full_core_snapshot_v3():
         "/upt/1/mr/2/r": '<Reading xmlns="urn:ieee:std:2030.5:ns"><value>1250</value></Reading>',
         "/upt/1/mr/3/r": '<Reading xmlns="urn:ieee:std:2030.5:ns"><value>40808961</value></Reading>',
     }
-    snapshot = read_core_snapshot(FakeClient(responses), "192.168.1.122", 8081)
+    snapshot = read_core_snapshot(FakeClient(responses), "192.0.2.10", 8081)
     assert snapshot.agent_version == AgentVersion.V3
     assert snapshot.software_version == "3.2.50"
     assert snapshot.instantaneous_power_w == 875
